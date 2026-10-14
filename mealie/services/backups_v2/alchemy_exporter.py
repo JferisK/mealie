@@ -114,6 +114,10 @@ class AlchemyExporter(BaseService):
         used in the context of reading a json file into a database via SQLAlchemy.
         """
         for key, value in data.items():
+            if key == "payload" and isinstance(value, dict):
+                # Planner JSON is an opaque versioned contract, not relational columns.
+                # Preserve nested IDs and ISO dates as strings on SQLite and PostgreSQL.
+                continue
             if isinstance(value, dict):
                 data = self.convert_types(value)
             elif isinstance(value, list):  # assume that this is a list of dictionaries

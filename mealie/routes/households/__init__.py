@@ -4,6 +4,7 @@ from . import (
     controller_cookbooks,
     controller_group_notifications,
     controller_group_recipe_actions,
+    controller_household_planner,
     controller_household_self_service,
     controller_invitations,
     controller_mealplan,
@@ -26,3 +27,6 @@ router.include_router(controller_webhooks.router)
 # mealplan_rules must be added before mealplan due to the way the routes are defined
 router.include_router(controller_mealplan_rules.router)
 router.include_router(controller_mealplan.router)
+
+
+router.include_router(controller_household_planner.router)

@@ -1,0 +1,31 @@
+name: Household planner regression
+on:
+  push:
+    branches: [mealie-next]
+    paths:
+      - 'mealie/**'
+      - 'tests/household_planner/**'
+      - 'integrations/mcp/**'
+      - '.github/workflows/household-planner.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  planner:
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION: 'false'
+      UV_FROZEN: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v4
+      - name: Native LDAP dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsasl2-dev libldap2-dev libssl-dev
+      - run: uv sync --group dev
+      - name: Planner service and HTTP regression tests
+        run: uv run pytest --confcutdir=tests/household_planner tests/household_planner -q
+      - name: MCP protocol and credential isolation
+        run: uv run --project integrations/mcp python -m unittest discover -s integrations/mcp

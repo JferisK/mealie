@@ -1,167 +1,109 @@
-# Haushalts-Essensplanung: Architektur und Entwicklungsplan
+# Haushaltsplanung auf Mealie v3.28.0
 
-Stand: 14.10.2026. Status: abgestimmter Produktumfang, Implementierung ausstehend.
-Diese öffentliche Dokumentation enthält ausschließlich allgemeine Anforderungen, keine persönlichen Gesundheitswerte.
+Stand: 14.10.2026. Implementierung auf dem Default-Branch `mealie-next`.
+Basis ist der am Prüftag neueste stabile Release **v3.28.0**, Commit `0552eaa4a80031b8572849cca0ed95d07f1be001`.
+Der frühere Stand 3.3.2 wurde ersetzt. Hosting, VPS-Aufräumen und echte Mobile-Verbindungen folgen separat.
+Diese öffentliche Dokumentation enthält keine persönlichen Messwerte, Namen oder Zugangsdaten.
 
-## Verbindliche Release-Basis
+## Benutzen
 
-- Neuester stabiler Upstream-Release laut GitHub releases/latest am Prüftag: [v3.28.0](https://github.com/mealie-recipes/mealie/releases/tag/v3.28.0), veröffentlicht 24.09.2026.
-- Release-Commit: `0552eaa4a80031b8572849cca0ed95d07f1be001`.
-- Neue Basis im Fork: `upstream/v3.28.0`.
-- Dieser Planungsbranch basiert direkt auf diesem Release, nicht auf dem alten Fork-Stand.
-- Vor Implementierungsbeginn neuesten stabilen Release erneut prüfen. Kein Entwicklungsstart auf 3.3.2.
-- Der bestehende Default-Branch `mealie-next` bleibt vorerst historisch auf 3.3.2. Eine Änderung des Default-Branches ist mit dem verfügbaren Connector nicht vorgenommen worden.
-- Aktuelle geprüfte Frontend-Toolchain: Nuxt 4, Vue 3, Vuetify 4, pnpm; Release Notes nennen Python 3.14.
-- Kleine additive Änderungen, bestehende API/Komponenten wiederverwenden; regelmäßige Upstream-Updates über überprüfbare PRs.
+Nach Migration und Start: Navigation **Your week** → `/household/planning`.
+Zwei eigene Nutzerkonten in einem gemeinsamen Haushalt anlegen. Jeder pflegt sein eigenes Planungsprofil und verbindet seinen eigenen MCP-/Health-Zugang.
+Die Rezepte kann der Assistent über MCP erstellen und bearbeiten; manuelle Rezeptpflege ist kein Pflichtschritt.
 
-## Technische Bestandsaufnahme
+1. Assistent liest Haushaltspräferenzen und Bestand, erstellt klare Rezepte mit Zutatenmengen und Zubereitung.
+2. Für die Planung ergänzt er strukturierte Zutaten mit Roh-/Garbezug, Nährwerten pro 100 g und echten Quellen.
+3. Woche vorschlagen: Frühstück, Mittag, Abend, Snacks; eigene Portionen und bei Bedarf unterschiedliche Gerichte.
+4. Vorschau prüfen und bestätigen. Tageswerte erscheinen je Person; frische Kochmengen und Einkauf werden zusammengefasst.
+5. Sonntags nach tatsächlichem Kochen Portionen mit Datum/Fach einfrieren. Entnahme erst nach Bestätigung verbuchen.
+6. Monatlich Messwerte synchronisieren, Zielvorschlag prüfen und ausdrücklich bestätigen.
 
-Geprüft: frontend/package.json, mealie/schema/meal_plan/new_meal.py und mealie/schema/recipe/recipe_nutrition.py auf v3.28.0.
-Der Plan unterstützt bereits breakfast, lunch, dinner, side, snack, drink und dessert. Diese Kategorien nicht neu erfinden.
-CreatePlanEntry enthält Datum, Typ, Titel, Text und recipe_id, aber keine persönlichen Portionsmengen.
-Nutrition enthält optionale Stringwerte für Kalorien und Makros, jedoch keine explizite Bezugsmenge oder Quellenqualität.
-Eine vollständige Analyse sämtlicher Upstream-Funktionen und ein Build stehen noch aus.
+## Implementiert
 
-Historische Referenz: [PR #6399](https://github.com/mealie-recipes/mealie/pull/6399), Branch feature/planner-calorie-tracking.
-Der PR wurde ohne Merge geschlossen, weil die Nährwertgrundlagen zuerst verbessert werden sollten.
-Als UX-Referenz verwenden, nicht unverändert übernehmen:
-- localStorage-Ziele durch serverseitige Nutzerziele ersetzen.
-- Pauschales Teilen durch Rezeptportionen durch explizite Bezugsmenge ersetzen.
-- Fehlende Nährwerte nicht als null Kalorien darstellen.
-- Feste Portion=1 durch persönliche Portionen ersetzen.
-- Historische Testbehauptungen sind keine aktuelle Testausführung.
-
-## Produktumfang
-
-Zwei getrennte Nutzer in einem gemeinsamen Haushalt. Ganze Tage inklusive Frühstück und Snacks; mittags kleinere, leichter bekömmliche Mahlzeiten, abends mehr Spielraum.
-Überwiegend gemeinsame Gerichte mit persönlichen Varianten und Mengen. Ernährungsanforderungen pro Profil: glutenfrei/laktosefrei, einschließlich separat konfigurierbarer Spurenregel.
-Mehrere Gerichte und kombinierbare Komponenten am Sonntag vorkochen; Kochzeit flexibel, Abwechslung über die Woche.
-KI pflegt Rezepte nach Auftrag selbstständig; Wochenplanung wird vor Speicherung bestätigt.
-Gefrierbestand über Chat und schnelle Buttons, QR-Etiketten später.
-Keine Budget- oder Preisverwaltung. VPS/Portainer-Aufräumen erst in der Hostingphase.
-
-## Architekturentscheidungen
-
-Mealie bleibt führend für Rezepte, Planung und Einkauf. Erweiterungen für Portionen und Chargen werden additiv in Backend/API eingeführt.
-Ein separater MCP-Dienst spricht die authentifizierte Mealie-API; er erhält keine Portainer-/Docker-Verwaltungsrechte.
-ChatGPT Mobile bevorzugt, aber Funktionsnachweis durch echten Lese-/Schreibtest erforderlich. Claude Mobile, Codex und Claude Code als Alternativen.
-Bestehende MCP-Projekte vor Eigenbau prüfen:
-- https://github.com/timo-reymann/mealie-mcp-server
-- https://github.com/cometto2007/mealie-mcp-server
-Prüfkriterien: Lizenz, Wartung, aktuelle API-Kompatibilität, Authentifizierung, Streamable HTTP, Toolumfang, Fehlerbehandlung und Idempotenz. Noch kein Projekt endgültig ausgewählt.
-Portainer-MCP ist optional und bleibt eine separate Verwaltungsanbindung.
-
-Die iPhone-App dient ausschließlich als HealthKit-Brücke, nicht als zweite Rezeptoberfläche.
-Health-Daten und Ziele sind nutzerbezogen geschützt; Haushaltsmitgliedschaft allein erlaubt keinen Zugriff auf die Gesundheitsdaten anderer.
-Langfristige Ziele können später aus einem privaten Begleitdokument übernommen werden. Keine automatische bidirektionale Drive-Synchronisation voraussetzen.
-
-## Vorgeschlagenes Datenmodell (noch kein implementiertes Schema)
-
-| Entität | Inhalt / Invariante |
+| Bereich | Verhalten |
 |---|---|
-| NutritionBasis | Gesamtgericht, Portion, 100 g oder unbekannt; Quelle, Einheit, Berechnungsstand |
-| IngredientNutrition | strukturierte Menge, Roh-/Garbezug, Produkt-/Lebensmitteldatenquelle, Stand |
-| NutritionProfile | persönliche Präferenzen, Ausschlüsse und bestätigte Zielversion |
-| GoalRevision | Eingaben, Formelversion, Annahmen, Vorschlag, Bestätigung, Gültigkeit |
-| MealAllocation | Planeintrag, Person, Variante, Portionen/Gramm und Plan-/Verzehrstatus |
-| CookBatch | tatsächlich gekochte Rezeptversion, Ausbeute und Komponenten |
-| FreezeBatch | Charge, Restmenge, Einheit, Einfrierdatum, Fach, Nährwertsnapshot |
-| StockMovement | Einlagern, Entnehmen, Korrigieren, Verwerfen; Idempotenzschlüssel |
-| Reservation | geplante Menge einer Charge, unabhängig von tatsächlicher Entnahme |
-| HealthObservation | Person, Messart, Quelle, Messzeit, externe ID, Synchronisationsstand |
+| Wochenoberfläche | Responsive Tageskarten mit Rezeptbildern, Rezeptlinks, persönlichen Portionen und Kalorien; sieben Tage, Personenauswahl und Wochenwechsel |
+| Nährwerte | Zutatenbasierte Rechnung, explizite Rezeptportionen, Roh-/Garbezug; fehlende/unsourced Werte bleiben unbekannt, nicht null Kalorien |
+| Native Rezepte | Berechnete Nährwerte pro Portion und Rezept-Portionszahl werden atomar in das native Rezept übernommen; nicht belegte weitere Nährwerte bleiben leer |
+| Verträglichkeit | glutenfrei/laktosefrei/freezer-friendly jeweils yes/no/unknown; positive GF/LF-Angaben brauchen Belegtext; Profile werden beim Planen geprüft |
+| Persönliche Varianten | Mehrere Rezeptzuweisungen je Mahlzeit, unterschiedliche Mengen je Person; Vorlieben/Abneigungen für den Assistenten verfügbar |
+| Bestätigte Woche | Unveränderlicher Plan mit Rezept-Nährwertsnapshots; ersetzen durch Stornieren und neue Vorschau; native Mealie-Kalendereinträge werden mitgeführt |
+| Kochen und Einkauf | Gemeinsame Mengen aus persönlichen Portionen; vorhandene Gefrierportionen ausgeschlossen; Einkaufsliste mit serverseitigen Häkchen |
+| Gefrierschrank | Charge, Einfrierdatum, Fach, Restmenge, reservierte/verfügbare Portionen, Rezeptsnapshot und Aufwärmhinweise |
+| Bestandsführung | Reale Entnahme, Verwerfen, absolute Korrektur, idempotente IDs; Reservierung reduziert nicht den physischen Bestand |
+| Ziele | Eigener geschützter Bereich, bestehende Ziele manuell oder Formelvorschläge, bestätigte Versionen, monatlich fällige Überprüfung |
+| MCP | stdio und authentifiziertes Streamable HTTP; getrennte Benutzer-Credentials; Vorschau/Bestätigung, Rezept- und Bestandsaktionen |
+| HealthKit | SwiftUI-Brücke als Quellcode mit Keychain, HTTPS, erlaubnisbasierter Synchronisation, echten Löschereignissen für Einzelmessungen und eigener Server-Löschfunktion |
 
-Rezeptänderungen dürfen eingefrorene Chargen nicht rückwirkend umrechnen.
-Unbekannt bleibt unbekannt. Aggregationen zeigen Teilabdeckung. Ein geplanter Tag ist kein Nachweis tatsächlichen Verzehrs.
-Verfügbare Gefriermenge = physischer Bestand minus Reservierungen. Bestätigung eines Plans reserviert; tatsächliche Entnahme bucht ab.
-Kochmengen, Einkaufsbedarf und konsumierte Mengen getrennt halten. Fertige Gefriergerichte dürfen nicht nochmals als neu zu kaufende Zutaten zählen.
+Die native Mealie-Nährwertstruktur hat keine eigenständige Bezugsdefinition. Für angereicherte Rezepte ist die definierte Bezugsgröße **eine Planerportion**.
+Ändert der Assistent Zutaten oder Portionszahl im Rezept, muss er anschließend `set_recipe_facts` mit den aktualisierten Grundlagen ausführen.
+Die strukturierten Quellen und Verträglichkeitsmerkmale liegen im Planer; native Kategorien/Tags können zusätzlich über `patch_recipe` gepflegt werden.
 
-## Nährwerte und wissenschaftliche Zielprüfung
+## Architektur und Datenrechte
 
-Berechnung aus strukturierten Zutaten und nachvollziehbaren Datenquellen. Datenanbieter und Lizenz vor Implementierung auswählen.
-Bezugsmenge und Roh-/Gargewicht dürfen nicht stillschweigend geraten werden. KI-Schätzungen klar kennzeichnen und nicht als belegte Werte ausgeben.
-Gluten-/Laktose- und Gefriereignung jeweils ja/nein/ungeklärt mit Grundlage; Einfrier-/Aufwärmhinweise separat.
-Monatliche Überprüfung erzeugt einen begründeten Vorschlag, ändert aber keine aktiven Ziele ohne Bestätigung.
-Gängige Grundumsatzformeln anhand wissenschaftlicher Primärquellen vergleichen; Eignung und Unsicherheit, Aktivitätsannahmen und Proteinberechnung dokumentieren.
-Noch keine konkrete Formel oder persönlichen Zielwerte freigegeben. Formelprüfung und tatsächlicher Verlauf ergänzen sich.
-Kein doppeltes Addieren von Trainingsenergie und Aktivitätsfaktor. Fehlende/veraltete Messungen lösen Datenbedarf statt erfundener Anpassungen aus.
+FastAPI-Controller → Planerservice → versioniertes SQLAlchemy-Dokument. Die additive Migration heißt `hp20261014`.
+Gemeinsame Daten liegen unter `household:<id>`, private Daten unter `user:<id>`; IDs werden serverseitig aus der Authentifizierung abgeleitet.
+Private Endpoints akzeptieren keine fremde Nutzer-ID. Die Mitgliederliste teilt ausschließlich Namen und Essenspräferenzen,
+keine Gewichte, Geburtsdaten, Kalorienziele oder Messhistorien. Haushaltsmitglieder können gemeinsam Mahlzeiten und Bestände verwalten.
 
-## HealthKit
+Schreibvorgänge benötigen `revision`; veraltete Stände liefern HTTP 409. Kalender und Planerdokument committen in derselben Transaktion.
+Die Aggregate sind bewusst für einen kleinen Haushalt gebaut. Das ist keine Architektur für eine öffentlich betriebene Plattform mit vielen konkurrierenden Nutzern.
+Private Messhistorie ist auf 20.000 Einträge begrenzt. Alte Daten können über die Health-API entfernt werden.
+Die Daten sind Teil der normalen Datenbanksicherung; die Backup-Konvertierung bewahrt das verschachtelte JSON unverändert.
+Serveradministratoren und Backup-Inhaber haben weiterhin technischen Datenbankzugriff.
 
-Beide Nutzer koppeln ihr eigenes iPhone und geben Daten individuell frei.
-Zunächst lesend: Gewicht, Größe, Alter sowie Schritte/Trainings nach begründetem Zweck. Körperfett und Ruhe-/Aktivitätsenergie optional als ergänzende Vergleichsdaten.
-Keine pauschale Erhebung sämtlicher Health-Datentypen. Freigaben, Quellen, fehlende Daten und Aktualität sichtbar machen.
-Sichere Geräte-Kopplung; Deduplizierung, korrigierte/gelöschte Messungen, Widerruf und Löschung berücksichtigen.
-Manueller Sync plus bestmögliche Hintergrundübertragung; keine Echtzeitgarantie.
-Private Installation oder TestFlight genügt als Entwicklungsweg. Öffentlicher App Store ist kein Produktziel. TestFlight-Builds nach spätestens 90 Tagen erneuern.
-HealthKit auf echten Geräten testen; Simulator allein ist kein Funktionsnachweis.
+## Wissenschaftliche Zielprüfung
 
-## Gestaltung
+Mifflin–St Jeor schätzt den Ruheenergieverbrauch:
 
-Helles modernes SaaS-Design innerhalb des vorhandenen Vue/Vuetify-Stacks.
-Große Rezeptbilder, ruhige Typografie, verständliche Tags, klare Tageskarten und kompakte Wochenübersicht.
-Personenwechsel, persönliche Kalorien/Proteinwerte und Datenvollständigkeit direkt erreichbar.
-Eigene Ansichten: Heute, Woche, Sonntagskochen, Gefrierbestand, Einkauf.
-Mobile Zielbreite zunächst 390 px; große Touchflächen, Tastaturbedienung und lesbare Kontraste.
-Keine moralischen Gut-/Schlecht-Bewertungen von Mahlzeiten.
+`10 × Gewicht[kg] + 6,25 × Größe[cm] − 5 × Alter[Jahre] + Koeffizient (+5 / −161)`.
 
-## Backlog mit Abhängigkeiten und Abnahme
+Verwendet wird der Mittelwert täglicher Gewichtsmittel aus den letzten sieben Tagen; mindestens drei Messtage sind nötig.
+Der Vorschlag verwendet den ausdrücklich gewählten Aktivitätsfaktor und das vereinbarte Defizit. Watch-Aktivkalorien werden nicht zusätzlich addiert.
+Harris–Benedict (Originalgleichung) wird als Vergleich angezeigt, nicht mit Mifflin gemittelt.
+Ein Vergleich der ersten/letzten Sieben-Tage-Fenster innerhalb von 28 Tagen wird nur bei ausreichenden Daten berechnet.
 
-### P0 — Aktuelle Basis und Integrationsspike
-- [ ] Neueste stabile Version vor Start erneut feststellen; Unterschiede zu v3.28.0 prüfen.
-- [ ] Upstream-Funktionsvergleich für Nährwerte, Portionsplanung, Einkaufslisten und Vorräte.
-- [ ] MCP-Kandidaten prüfen und authentifizierten Lese-/Schreibtest durchführen.
-- [ ] Client-Matrix dokumentieren, insbesondere ChatGPT Mobile mit realem Account.
-Abnahme: dokumentierte kompatible Kombination aus Release, MCP, Auth und mindestens einem gewünschten Client. Keine behauptete mobile Unterstützung ohne Test.
+Protein verwendet ein ausdrücklich festgelegtes Referenzgewicht und einen vereinbarten g/kg-Faktor.
+Es wird **keine individuelle medizinische Empfehlung** aus Körpergewicht allein abgeleitet.
+Formeln liefern Schätzungen, keine Messung und keine verlässliche langfristige lineare Gewichtsprognose.
+Es gibt keine automatische Kalorienabsenkung oder heimliche Zieländerung. Die Monatsanzeige wird beim Abruf geprüft;
+ein monatlicher Hintergrundjob/Push-Dienst ist noch nicht eingerichtet.
 
-### P1 — Nährwertbasis, Ziele und persönliche Portionen
-- [ ] Additive Datenmodelle, API-Verträge und Migration entwerfen.
-- [ ] Quellen-/Bezugsmodell und deterministische Berechnungslogik.
-- [ ] Persönliche Varianten und Portionsmengen, serverseitige Zielversionen.
-- [ ] Eignungstags mit ungeklärtem Status.
-Abnahme: 2000 Gesamtkalorien/4 Portionen = 500; bereits portionsbezogene 500 bleiben 500. Null Portionen = 0, unbekannte Werte bleiben unbekannt. Dezimalkomma, Teilportionen und Haushaltsisolation testen.
+Quellen und technische Referenzen:
 
-### P2 — Vollständiger MCP-Ablauf
-Abhängig von P1.
-- [ ] Rezept anlegen/importieren und strukturieren.
-- [ ] Zwei persönliche Portionen und Varianten planen.
-- [ ] Wochenplan-Vorschau, danach ausdrückliche Bestätigung.
-- [ ] Einkaufsliste aus Gesamtbedarf erzeugen.
-- [ ] Wiederholbare Toolaufrufe, Konflikterkennung und Änderungsprotokoll.
-Abnahme: Rezept → zwei Profile → Wochenplan → Bestätigung → Einkaufsliste funktioniert; Wiederholung erzeugt keine Duplikate, Vorschau verändert keinen Bestand.
+- [Mifflin et al., 1990, PMID 2305711](https://pubmed.ncbi.nlm.nih.gov/2305711/)
+- [Harris & Benedict, Originalarbeit](https://pubmed.ncbi.nlm.nih.gov/16576330/)
+- [NIDDK Body Weight Planner: dynamische Energiebilanz](https://www.niddk.nih.gov/research-funding/at-niddk/labs-branches/laboratory-biological-modeling/integrative-physiology-section/research/body-weight-planner)
+- [Apple: HealthKit](https://developer.apple.com/documentation/healthkit)
+- [Apple: HKAnchoredObjectQuery](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquery)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [Upstream v3.28.0](https://github.com/mealie-recipes/mealie/releases/tag/v3.28.0)
+- [Historischer Wochenansicht-PR #6399](https://github.com/mealie-recipes/mealie/pull/6399)
 
-### P3 — Gefrierverwaltung
-Abhängig von P1, MCP-Anbindung auf P2 aufbauen.
-- [ ] Chargen und Komponenten, Fach und Einfrierdatum.
-- [ ] Reservierungen, Entnahmen, Korrekturen und Stornierungen.
-- [ ] Chat und schnelle Buttons; QR später.
-- [ ] Ältere geeignete Bestände im Plan berücksichtigen.
-Abnahme: 6 einlagern, 2 reservieren = 6 vorhanden/4 frei; 2 entnehmen = 4 vorhanden. Gleichzeitige Entnahmen dürfen keinen negativen Bestand erzeugen. Rezeptänderungen lassen Chargensnapshots unverändert.
+## Einrichtung und Betriebsgrenzen
 
-### P4 — Wochenansicht und Sonntagskochen
-Abhängig von P1–P3.
-- [ ] Mobile Tageskarten, Wochen-/Personenwechsel und Nährwertsummen.
-- [ ] Kochmengen aus Gerichten und Komponenten aggregieren.
-- [ ] Kühlschrank-/Gefrierzuordnung und Bestandsbezug.
-- [ ] Einkaufsbedarf ohne doppelt verrechnete Zutaten oder Portionen.
-Abnahme: vollständige Beispielwoche für zwei synthetische Profile, Varianten und Snacks; Kochliste, Einkauf und Reservierungen rechnerisch konsistent. Unvollständige Tage sichtbar.
+- [MCP-Anleitung](../../integrations/mcp/README.md): lokaler Client, Remote-Transport, Token-Trennung, Assistentenablauf.
+- [HealthKit-Anleitung](../../integrations/health-ios/README.md): XcodeGen, Signierung, private Installation/TestFlight, Gerätetest.
+- [Prüfprotokoll](VALIDATION.md): tatsächlich ausgeführte Prüfungen und offene Abnahme.
 
-### P5 — HealthKit und monatlicher Review
-API-Verträge nach P1; unabhängig von finalem UI entwickelbar.
-- [ ] Kleine iOS-Brücke mit individueller Freigabe und sicherem Sync.
-- [ ] Wissenschaftliche Methodenauswahl als dokumentierter Review.
-- [ ] Monatlicher Vorschlag mit alten/neuen Werten, Begründung und Bestätigung.
-- [ ] Reale Gerätetests und Verteilungsweg.
-Abnahme: wiederholter Sync ohne Duplikate; keine Einsicht in fremde Gesundheitsdaten; unbestätigter Vorschlag verändert aktive Ziele nicht. Widerruf/fehlende Daten getestet.
+Vor einem vorhandenen Server-Upgrade vollständiges Backup erstellen und Wiederherstellung mit diesem Fork prüfen.
+Den Mealie-Container **aus diesem Fork bauen**; das offizielle v3.28.0-Image enthält diese Erweiterungen nicht.
+Die bestehende Mealie-Buildstruktur bleibt erhalten; die Migration läuft beim normalen Datenbankstart.
+Beim Rücksetzen auf Upstream entweder das Backup wiederherstellen oder die Planermigration bewusst zurücknehmen (löscht Erweiterungsdaten).
+Keine produktive Instanz wurde hier geändert.
 
-### P6 — Hosting und Betrieb (später)
-- [ ] VPS-Inventur, konkreter Aufräumplan und Datensicherung.
-- [ ] Versioniertes Image, Reverse Proxy/TLS, Datenbank, MCP-Authentifizierung.
-- [ ] Migration und Restore-Probe, Rollbackplan und Updateverfahren.
-- [ ] Portainer-MCP bei Bedarf separat.
-Abnahme: reproduzierbarer Build und Wiederherstellung geprüft. Dieser Plan führt weder Deployment noch VPS-Löschungen aus.
+Bewusste Grenzen dieser Lieferung:
 
-## Prüfstatus dieses Planungs-PRs
+- ChatGPT/Claude Mobile sind noch nicht mit einem gehosteten Server getestet. Der HTTP-MCP verwendet Bearer-Tokens;
+  für Clients, die OAuth erwarten, fehlt noch ein passender OAuth-Gateway. Codex/Claude Code können stdio verwenden.
+- iOS-Quellcode ist vorhanden, aber auf dieser Linux-Umgebung nicht mit Xcode gebaut, signiert oder auf einem iPhone geprüft.
+- Einkauf ist die gemeinsame Wochen-Checkliste der Erweiterung, keine zweite Kopie in der nativen Shopping-Listenverwaltung.
+- Keine automatische Vorratsschrank-Erkennung, Preise, QR-Etiketten, Drive-Dauersynchronisation oder Portainer-Verwaltung.
+- Strenge Spurenvermeidung blockiert automatische Planbestätigung und verlangt individuelle Prüfung.
+- Essensvorlieben, leichte Mittagsgerichte, Variationen und sinnvoller Ablauf des Sonntagskochens steuert der Assistent;
+  es gibt keinen autonomen lokalen Rezeptgenerator oder Optimierungsdienst.
+- Komponenten können als eigene Rezepte eingeplant werden; verschachtelte Unterrezepte mit automatischer Mengenauflösung sind nicht implementiert.
+- Übersetzungsrichtlinie des Upstreams: nur en-US ergänzt; andere Sprachen verwenden den bestehenden Fallback.
 
-Repository-Metadaten, aktuelle Release-Referenz und zentrale Schemas gelesen.
-Keine Anwendung geändert, kein Build oder Laufzeittest ausgeführt.
-Issues sind im Fork deaktiviert; dieses versionierte Backlog ist daher die ausführbare Aufgabenliste.
+Der frühere Planungs-PR wird durch die direkte Arbeit im Default-Branch abgelöst. Neue Upstream-Versionen künftig kontrolliert integrieren,
+Migrationen und diese Regressionstests erneut ausführen; nicht blind auf einen beweglichen `latest`-Container wechseln.

@@ -43,6 +43,8 @@ jobs:
           path: docs/site
 
   deploy:
+    # Fork development does not automatically publish a hosted site.
+    if: github.repository == 'mealie-recipes/mealie' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     environment:
