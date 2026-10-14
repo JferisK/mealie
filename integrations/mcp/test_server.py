@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import server
@@ -12,6 +12,41 @@ from starlette.responses import JSONResponse
 
 
 class GatewayTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_shopping_scales_and_rejects_unknown_yield(self):
+        state = {"state": {"facts": {"r1": {"slug": "soup"}, "r2": {"slug": "frozen-only"}}}}
+        summary = {"cooking": [{"recipe_id": "r1", "servings": 2.5}, {"recipe_id": "r2", "servings": 0}]}
+        with (
+            patch.object(server, "planner_state", AsyncMock(return_value=state)),
+            patch.object(server, "week_summary", AsyncMock(return_value=summary)),
+            patch.object(server, "get_recipe", AsyncMock(return_value={"id": "r1", "recipeServings": 4})) as recipe,
+        ):
+            preview = await server.preview_week_shopping("week")
+            self.assertEqual(preview["recipes"], [{"recipeId": "r1", "recipeIncrementQuantity": 0.625}])
+            recipe.assert_awaited_once_with("soup")
+            recipe.return_value = {"id": "r1", "recipeServings": 0}
+            with self.assertRaisesRegex(ValueError, "serving count"):
+                await server.preview_week_shopping("week")
+
+    async def test_native_shopping_write_requires_confirmation(self):
+        with patch.object(server, "request", AsyncMock(return_value={})) as request:
+            with self.assertRaisesRegex(ValueError, "confirmation"):
+                await server.add_recipes_to_shopping_list("list", [])
+            request.assert_not_awaited()
+            payload = [{"recipeId": "r1", "recipeIncrementQuantity": 0.625}]
+            await server.add_recipes_to_shopping_list("list", payload, True)
+            request.assert_awaited_once_with("POST", "/api/households/shopping/lists/list/recipe", payload)
+
+    async def test_native_check_preserves_fields_and_list_membership(self):
+        item = {"id": "one", "note": "Rice", "quantity": 250, "checked": False, "shoppingListId": "list"}
+        with (
+            patch.object(server, "shopping_list", AsyncMock(return_value={"listItems": [item]})),
+            patch.object(server, "request", AsyncMock(return_value={})) as request,
+        ):
+            await server.check_shopping_item("list", "one", True)
+            request.assert_awaited_once_with("PUT", "/api/households/shopping/items", [{**item, "checked": True}])
+            with self.assertRaisesRegex(ValueError, "not found"):
+                await server.check_shopping_item("list", "foreign", True)
+
     async def test_credentials_do_not_cross_concurrent_requests(self):
         async def echo(scope, receive, send):
             before = server.USER_TOKEN.get()

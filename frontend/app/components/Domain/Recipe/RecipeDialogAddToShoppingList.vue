@@ -54,7 +54,8 @@
       v-model="dialog"
       :title="selectedShoppingList?.name || $t('recipe.add-to-list')"
       :icon="$globals.icons.cartCheck"
-      width="70%"
+      :width="$vuetify.display.smAndDown ? '100%' : '70%'"
+      bottom-sheet
       :submit-text="$t('recipe.add-to-list')"
       can-submit
       @submit="addRecipesToList()"

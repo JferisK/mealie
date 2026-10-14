@@ -161,8 +161,62 @@ async def confirm_week(plan: dict, revision: int, user_confirmed: bool = False) 
 
 @mcp.tool()
 async def week_summary(plan_id: str) -> dict:
-    """Get personal daily totals, combined cooking quantities and the shopping list."""
+    """Get personal daily totals, cooking quantities and ingredient demand (not a separate checklist)."""
     return await request("GET", f"/api/households/planning/plans/{path_part(plan_id)}/summary")
+
+
+@mcp.tool()
+async def shopping_lists() -> dict:
+    """Read native Mealie shopping lists. Use these for all shopping, not planner checked_items."""
+    return await request("GET", "/api/households/shopping/lists?perPage=-1")
+
+
+@mcp.tool()
+async def shopping_list(list_id: str) -> dict:
+    """Read a native shopping list, including its item IDs and checked states."""
+    return await request("GET", f"/api/households/shopping/lists/{path_part(list_id)}")
+
+
+@mcp.tool()
+async def preview_week_shopping(plan_id: str) -> dict:
+    """Preview native recipe quantities for fresh cooking only. Frozen portions are excluded.
+
+    Show the preview and existing list before adding. Quantities are recipe multiples, not servings.
+    """
+    state = await planner_state()
+    summary = await week_summary(plan_id)
+    recipes = []
+    for dish in summary["cooking"]:
+        if dish["servings"] <= 0:
+            continue
+        facts = state["state"]["facts"][dish["recipe_id"]]
+        recipe = await get_recipe(facts["slug"])
+        servings = recipe.get("recipeServings")
+        if not servings or servings <= 0:
+            raise ValueError("Set the native recipe serving count before adding shopping ingredients")
+        recipes.append({"recipeId": recipe["id"], "recipeIncrementQuantity": dish["servings"] / servings})
+    return {"recipes": recipes, "notice": "Adding these again adds the quantities again. Review the existing list."}
+
+
+@mcp.tool()
+async def add_recipes_to_shopping_list(list_id: str, recipes: list[dict], user_confirmed: bool = False) -> dict:
+    """Add the reviewed preview to a native list. Do not retry blindly: additions are not idempotent.
+
+    Native Mealie merges ingredients and respects pantry foods. Use the exact preview recipe quantities.
+    """
+    if not user_confirmed:
+        raise ValueError("User confirmation required")
+    return await request("POST", f"/api/households/shopping/lists/{path_part(list_id)}/recipe", recipes)
+
+
+@mcp.tool()
+async def check_shopping_item(list_id: str, item_id: str, checked: bool) -> dict:
+    """Check or uncheck a native shopping item on user instruction. Preserve all other fields."""
+    current = await shopping_list(list_id)
+    item = next((item for item in current["listItems"] if item["id"] == item_id), None)
+    if not item:
+        raise ValueError("Item not found in this list")
+    return await request("PUT", "/api/households/shopping/items", [{**item, "checked": checked}])
 
 
 @mcp.tool()

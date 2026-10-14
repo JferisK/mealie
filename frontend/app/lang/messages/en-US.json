@@ -1299,7 +1299,7 @@
     "recalculate": "Calculate a new proposal",
     "inputs": "Calculation inputs",
     "manualGoals": "Enter existing targets (not a recommendation)",
-    "navWeek": "Plan",
+    "navWeek": "Portions",
     "navCook": "Cook",
     "navShop": "Shop",
     "navigation": "Kitchen navigation",
@@ -1332,6 +1332,15 @@
     "keepEditing": "Keep editing",
     "discardDraft": "Discard draft",
     "profileSettings": "Profile & calculation settings",
-    "manualTargets": "Enter existing targets"
+    "manualTargets": "Enter existing targets",
+    "calendarView": "Calendar",
+    "portionsView": "Portions & preparation",
+    "nativeShoppingHint": "Choose an existing Mealie shopping list and review ingredients. Frozen meals are excluded. Adding again adds the quantities again.",
+    "addFreshToList": "Add fresh ingredients to list",
+    "shoppingRecipeMissing": "Recipe could not be loaded. Please refresh and try again.",
+    "shoppingYieldMissing": "Set the number of servings in the recipe before adding ingredients.",
+    "stockTab": "Freezer",
+    "cookTab": "Cook",
+    "goalsTab": "Goals"
   }
 }

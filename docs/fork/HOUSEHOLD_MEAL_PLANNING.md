@@ -7,7 +7,8 @@ Diese öffentliche Dokumentation enthält keine persönlichen Messwerte, Namen o
 
 ## Benutzen
 
-Nach Migration und Start: Navigation **Your week** → `/household/planning`.
+Nach Migration und Start: **Essensplaner → Portionen** → `/household/mealplan/planner/portions`.
+Kalender, Portionen, Vorrat, Kochen und Ziele sind Ansichten im bestehenden Speiseplan; die alte URL leitet weiter.
 Zwei eigene Nutzerkonten in einem gemeinsamen Haushalt anlegen. Jeder pflegt sein eigenes Planungsprofil und verbindet seinen eigenen MCP-/Health-Zugang.
 Die Rezepte kann der Assistent über MCP erstellen und bearbeiten; manuelle Rezeptpflege ist kein Pflichtschritt.
 
@@ -28,7 +29,7 @@ Die Rezepte kann der Assistent über MCP erstellen und bearbeiten; manuelle Reze
 | Verträglichkeit | glutenfrei/laktosefrei/freezer-friendly jeweils yes/no/unknown; positive GF/LF-Angaben brauchen Belegtext; Profile werden beim Planen geprüft |
 | Persönliche Varianten | Mehrere Rezeptzuweisungen je Mahlzeit, unterschiedliche Mengen je Person; Vorlieben/Abneigungen für den Assistenten verfügbar |
 | Bestätigte Woche | Unveränderlicher Plan mit Rezept-Nährwertsnapshots; ersetzen durch Stornieren und neue Vorschau; native Mealie-Kalendereinträge werden mitgeführt |
-| Kochen und Einkauf | Gemeinsame Mengen aus persönlichen Portionen; vorhandene Gefrierportionen ausgeschlossen; Einkaufsliste mit serverseitigen Häkchen |
+| Kochen und Einkauf | Gemeinsame Mengen aus persönlichen Portionen; vorhandene Gefrierportionen ausgeschlossen; Zutatenauswahl und Häkchen in der nativen Mealie-Einkaufsliste |
 | Gefrierschrank | Charge, Einfrierdatum, Fach, Restmenge, reservierte/verfügbare Portionen, Rezeptsnapshot und Aufwärmhinweise |
 | Bestandsführung | Reale Entnahme, Verwerfen, absolute Korrektur, idempotente IDs; Reservierung reduziert nicht den physischen Bestand |
 | Ziele | Eigener geschützter Bereich, bestehende Ziele manuell oder Formelvorschläge, bestätigte Versionen, monatlich fällige Überprüfung |
@@ -97,13 +98,13 @@ Bewusste Grenzen dieser Lieferung:
 - ChatGPT/Claude Mobile sind noch nicht mit einem gehosteten Server getestet. Der HTTP-MCP verwendet Bearer-Tokens;
   für Clients, die OAuth erwarten, fehlt noch ein passender OAuth-Gateway. Codex/Claude Code können stdio verwenden.
 - iOS-Quellcode ist vorhanden, aber auf dieser Linux-Umgebung nicht mit Xcode gebaut, signiert oder auf einem iPhone geprüft.
-- Einkauf ist die gemeinsame Wochen-Checkliste der Erweiterung, keine zweite Kopie in der nativen Shopping-Listenverwaltung.
+- Einkauf verwendet ausschließlich die native Mealie-Listenoberfläche. „Frische Zutaten auf die Liste“ nutzt den vorhandenen Zutatendialog und die aktuelle Rezept-Portionszahl. Fehlende Portionszahlen blockieren die Übernahme. Erneutes Hinzufügen addiert erneut; bestehende Listen vorher prüfen. Alte `checked_items` bleiben zur API-Kompatibilität gespeichert, werden aber nicht mehr als zweite Liste angeboten.
 - Keine automatische Vorratsschrank-Erkennung, Preise, QR-Etiketten, Drive-Dauersynchronisation oder Portainer-Verwaltung.
 - Strenge Spurenvermeidung blockiert automatische Planbestätigung und verlangt individuelle Prüfung.
 - Essensvorlieben, leichte Mittagsgerichte, Variationen und sinnvoller Ablauf des Sonntagskochens steuert der Assistent;
   es gibt keinen autonomen lokalen Rezeptgenerator oder Optimierungsdienst.
 - Komponenten können als eigene Rezepte eingeplant werden; verschachtelte Unterrezepte mit automatischer Mengenauflösung sind nicht implementiert.
-- Übersetzungsrichtlinie des Upstreams: nur en-US ergänzt; andere Sprachen verwenden den bestehenden Fallback.
+- Auf ausdrücklichen Wunsch ist die Erweiterung in diesem Fork auch auf Deutsch übersetzt; diese Fork-Übersetzung liegt außerhalb des Upstream-Crowdin-Ablaufs.
 
 Der frühere Planungs-PR wird durch die direkte Arbeit im Default-Branch abgelöst. Neue Upstream-Versionen künftig kontrolliert integrieren,
 Migrationen und diese Regressionstests erneut ausführen; nicht blind auf einen beweglichen `latest`-Container wechseln.

@@ -224,7 +224,6 @@ const createLinks = computed(() => [
 ]);
 
 const topLinks = computed<SideBarLink[]>(() => [
-  { icon: $globals.icons.calendarMultiselect, title: i18n.t("household-planner.week"), to: "/household/planning", restricted: true },
   {
     icon: $globals.icons.silverwareForkKnife,
     to: `/g/${groupSlug.value}`,

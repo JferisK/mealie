@@ -2,6 +2,27 @@
 
 Basis: Mealie v3.28.0. Es wurden keine produktiven Nutzerwerte oder Zugangsdaten für Tests verwendet.
 
+## Integration in Mealie und deutsche Demo – 14.10.2026
+
+Die frühere separate Wochen-Navigation und eigene Einkaufs-Checkliste wurden aus der Oberfläche entfernt.
+Die Erweiterung liegt jetzt als zusätzliche Ansichten im nativen Essensplaner. Einkauf verwendet den
+vorhandenen Mealie-Zutatendialog und dieselben nativen Einkaufslisten wie die restliche Anwendung.
+Die aktuelle Rezept-Portionszahl skaliert die frischen Kochmengen; Gefrierportionen sind ausgeschlossen.
+Fehlende Portionszahlen verhindern die Übernahme. Mengen werden nur nach Bestätigung hinzugefügt;
+wiederholtes Hinzufügen ist additiv und wird in der Oberfläche sowie den MCP-Tools erklärt.
+
+Nuxt-Produktionsbuild und gezieltes ESLint erfolgreich. Keine TypeScript-Meldungen in der neuen
+Portionskomponente und dem geänderten Speiseplan-Router; vorhandene Upstream-Typfehler bleiben,
+auch im bestehenden Rezept-Zutatendialog und DefaultLayout. Sechs MCP-Tests erfolgreich, einschließlich
+Bruchteilskalierung, fehlender Rezept-Portionszahl, Bestätigungspflicht und nativer Einkaufs-Häkchen.
+Der Browsercheck nutzt den gebauten Client mit synthetischen API-Antworten und deutschen Texten:
+Weiterleitung der alten URL, Personenwechsel, native Zutatenauswahl samt skalierter POST-Nutzlast,
+native Einkaufslistenseite und vier zusätzliche Ansichten bei 320/390/430/768/1280 Pixeln.
+Die native Einkaufsseite meldet im Headless-Browser eine abgelehnte Wake-Lock-Berechtigung;
+dieser bekannte Umgebungsfehler wurde separat erfasst. Keine weiteren JavaScript-Seitenfehler.
+Die Demo-Namen sind Jakob und Sanja; die Rezept-/Zielwerte sind weiterhin fiktiv.
+Kein produktiver Server- oder physischer iPhone-Test.
+
 ## Mobile-first UI – 14.10.2026
 
 Die Planung verwendet einen ausgewählten Tag, einen Personenwechsel und eine optionale Wochenübersicht.
