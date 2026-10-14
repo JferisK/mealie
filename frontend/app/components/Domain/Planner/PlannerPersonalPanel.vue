@@ -1,26 +1,5 @@
 <template>
   <div class="personal-grid">
-    <v-card variant="outlined" rounded="xl" :title="t('profile')">
-      <v-card-text>
-        <p class="mb-5 text-medium-emphasis">
-          {{ t('privateHint') }}
-        </p>
-        <v-text-field v-model="profile.birth_date" type="date" :label="t('birthDate')" />
-        <v-number-input v-model="profile.height_cm" :label="t('height')" :min="100" :max="250" />
-        <v-select v-model="profile.equation_sex" :items="[{ title: t('male'), value: 'male' }, { title: t('female'), value: 'female' }]" :label="t('equationSex')" />
-        <v-number-input v-model="profile.activity_factor" :label="t('activity')" :min="1.2" :max="2.4" :step="0.1" />
-        <v-number-input v-model="profile.deficit_kcal" :label="t('deficit')" :min="0" :max="750" :step="50" />
-        <v-number-input v-model="profile.protein_reference_kg" :label="t('referenceWeight')" :min="1" />
-        <v-number-input v-model="profile.protein_g_per_kg" :label="t('proteinFactor')" :min="0.8" :max="2.2" :step="0.1" />
-        <v-checkbox v-model="profile.gluten_free" :label="t('gf')" hide-details />
-        <v-checkbox v-model="profile.lactose_free" :label="t('lf')" hide-details />
-        <v-checkbox v-model="profile.avoid_traces" :label="t('traces')" hide-details />
-        <v-combobox v-model="profile.dislikes" :label="t('dislikes')" chips multiple class="mt-4" />
-        <v-btn color="primary" :disabled="busy" @click="emit('saveProfile', profile)">
-          {{ t('save') }}
-        </v-btn>
-      </v-card-text>
-    </v-card>
     <div>
       <v-card variant="tonal" rounded="xl" :title="t('activeGoals')" class="mb-5">
         <v-card-text v-if="personal.state.active">
@@ -53,14 +32,71 @@
           </v-btn>
         </v-card-actions>
       </v-card>
-      <v-card variant="outlined" rounded="xl" :title="t('manualGoals')">
+      <details class="manual-settings">
+        <summary>{{ t('manualTargets') }}</summary><v-card variant="outlined" rounded="xl" :title="t('manualGoals')">
+          <v-card-text>
+            <v-number-input v-model="manual.calories" :precision="2" inputmode="decimal" label="kcal" :min="1" /><v-number-input v-model="manual.protein" :precision="2" inputmode="decimal" :label="`${t('protein')} (g)`" :min="1" /><v-btn variant="tonal" :disabled="busy" @click="emit('manual', manual)">
+              {{ t('preview') }}
+            </v-btn>
+          </v-card-text>
+        </v-card>
+      </details>
+    </div>
+    <details class="profile-settings">
+      <summary>{{ t('profileSettings') }}</summary>
+      <v-card variant="outlined" rounded="xl" :title="t('profile')">
         <v-card-text>
-          <v-number-input v-model="manual.calories" label="kcal" :min="1" /><v-number-input v-model="manual.protein" :label="`${t('protein')} (g)`" :min="1" /><v-btn variant="tonal" :disabled="busy" @click="emit('manual', manual)">
-            {{ t('preview') }}
+          <p class="mb-5 text-medium-emphasis">
+            {{ t('privateHint') }}
+          </p>
+          <v-text-field v-model="profile.birth_date" type="date" :label="t('birthDate')" />
+          <v-number-input
+            v-model="profile.height_cm"
+            :precision="2"
+            inputmode="decimal"
+            :label="t('height')"
+            :min="100"
+            :max="250"
+          />
+          <v-select v-model="profile.equation_sex" :items="[{ title: t('male'), value: 'male' }, { title: t('female'), value: 'female' }]" :label="t('equationSex')" />
+          <v-number-input
+            v-model="profile.activity_factor"
+            :precision="2"
+            inputmode="decimal"
+            :label="t('activity')"
+            :min="1.2"
+            :max="2.4"
+            :step="0.1"
+          />
+          <v-number-input
+            v-model="profile.deficit_kcal"
+            :precision="2"
+            inputmode="decimal"
+            :label="t('deficit')"
+            :min="0"
+            :max="750"
+            :step="50"
+          />
+          <v-number-input v-model="profile.protein_reference_kg" :precision="2" inputmode="decimal" :label="t('referenceWeight')" :min="1" />
+          <v-number-input
+            v-model="profile.protein_g_per_kg"
+            :precision="2"
+            inputmode="decimal"
+            :label="t('proteinFactor')"
+            :min="0.8"
+            :max="2.2"
+            :step="0.1"
+          />
+          <v-checkbox v-model="profile.gluten_free" :label="t('gf')" hide-details />
+          <v-checkbox v-model="profile.lactose_free" :label="t('lf')" hide-details />
+          <v-checkbox v-model="profile.avoid_traces" :label="t('traces')" hide-details />
+          <v-combobox v-model="profile.dislikes" :label="t('dislikes')" chips multiple class="mt-4" />
+          <v-btn color="primary" :disabled="busy" @click="emit('saveProfile', profile)">
+            {{ t('save') }}
           </v-btn>
         </v-card-text>
       </v-card>
-    </div>
+    </details>
   </div>
 </template>
 
@@ -80,9 +116,9 @@ watch(() => props.personal.state.profile, (p) => { profile.value = { ...p }; });
 <style scoped>
 .personal-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
-  max-width: 1000px;
+  max-width: 720px;
 }
 dl {
   display: grid;
@@ -91,9 +127,44 @@ dl {
   gap: 8px;
   margin-top: 12px;
 }
-@media (max-width: 700px) {
-  .personal-grid {
-    grid-template-columns: 1fr;
-  }
+summary {
+  min-height: 52px;
+  padding: 14px 0;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+summary:focus-visible {
+  outline: 3px solid rgb(var(--v-theme-primary));
+  outline-offset: 3px;
+}
+:deep(.v-card-title) {
+  white-space: normal;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+:deep(.v-btn) {
+  min-height: 44px;
+  white-space: normal;
+  height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  letter-spacing: 0;
+}
+:deep(.v-card-text h2) {
+  font-size: 1.35rem;
+  line-height: 1.5;
+}
+:deep(.v-label) {
+  white-space: normal;
+}
+.profile-settings,
+.manual-settings {
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+}
+dt,
+dd {
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 </style>

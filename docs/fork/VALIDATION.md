@@ -2,6 +2,25 @@
 
 Basis: Mealie v3.28.0. Es wurden keine produktiven Nutzerwerte oder Zugangsdaten für Tests verwendet.
 
+## Mobile-first UI – 14.10.2026
+
+Die Planung verwendet einen ausgewählten Tag, einen Personenwechsel und eine optionale Wochenübersicht.
+Eine feste Navigation am unteren Bildschirmrand verbindet Plan, Gefrierbestand, Kochplan, Einkauf und private Ziele.
+Gefrierentnahmen werden mit einer Mengenbestätigung ausgeführt; Dezimalwerte bleiben erhalten.
+Die Einkaufsliste bietet große antippbare Zeilen und einen Erledigungsfortschritt. Profilformulare sind eingeklappt.
+
+Der aktualisierte Nuxt-Produktionsbuild und gezieltes ESLint sind erfolgreich. Der TypeScript-Gesamtcheck
+enthält weiterhin Upstream-Fehler, aber keine Meldungen für die beiden geänderten Planerkomponenten.
+Der gebaute Client wurde mit Playwright/Chromium und synthetischen API-Antworten geprüft:
+Tages-/Personenwechsel, sieben Tage in der Wochenübersicht, Gefriersuche, bestätigte Entnahme von 0,5 Portionen,
+Einkaufsfortschritt und unveränderte Dezimalfaktoren 1,4/1,2. Alle fünf Bereiche wurden bei 320, 390, 430,
+768 und 1280 Pixeln ohne horizontales Seitenüberlaufen geprüft; keine JavaScript-Seitenfehler.
+Screenshots zeigen diesen echten Client mit Demo-Daten. Dies ersetzt keinen Test auf einem physischen
+iPhone/Safari oder mit einem produktiven Server. Die Backend-Prüfungen unten stammen aus dem vorherigen
+Implementierungslauf; bei dieser UI-Änderung wurden keine Backend-Dateien geändert.
+
+## Implementierungsprüfung
+
 | Prüfung | Ergebnis |
 |---|---|
 | Nuxt Produktionsbuild `pnpm generate` | Erfolgreich; SPA/PWA-Artefakte erzeugt |
