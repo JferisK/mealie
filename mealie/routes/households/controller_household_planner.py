@@ -12,6 +12,7 @@ from mealie.schema.household_planner.models import (
     GoalRevision,
     GoalsIn,
     HealthSyncIn,
+    IdeaIn,
     MovementIn,
     PersonalOut,
     PersonalState,
@@ -141,6 +142,36 @@ class HouseholdPlannerController(BaseUserController):
         except ValueError as exc:
             self.session.rollback()
             raise HTTPException(422, str(exc)) from exc
+
+    @router.post("/ideas", response_model=StateOut)
+    def add_idea(self, data: IdeaIn, revision: int = Query(ge=0)):
+        s = self._service(revision)
+        recipe = self.repos.recipes.get_one(data.recipe_id, key="id")
+        if not recipe or recipe.household_id != self.household_id:
+            raise HTTPException(404, "Recipe not found in this household")
+        try:
+            s.add_idea(data, recipe.name, recipe.slug, self.user.id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return self._write(s)
+
+    @router.post("/ideas/{idea_id}/like", response_model=StateOut)
+    def like_idea(self, idea_id: UUID, revision: int = Query(ge=0)):
+        s = self._service(revision)
+        try:
+            s.toggle_like(idea_id, self.user.id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        return self._write(s)
+
+    @router.delete("/ideas/{idea_id}", response_model=StateOut)
+    def remove_idea(self, idea_id: UUID, revision: int = Query(ge=0)):
+        s = self._service(revision)
+        try:
+            s.remove_idea(idea_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        return self._write(s)
 
     @router.delete("/plans/{plan_id}", response_model=StateOut)
     def cancel(self, plan_id: UUID, revision: int = Query(ge=0)):

@@ -253,7 +253,8 @@ const { shoppingLists, open: shoppingDialog, getShoppingLists } = useAddToShoppi
 const meals: Meal[] = ["breakfast", "lunch", "dinner"];
 const palette = ["rgb(var(--v-theme-primary))", "rgb(var(--v-theme-secondary))", "rgb(var(--v-theme-accent))"];
 const today = format(new Date(), "yyyy-MM-dd");
-const week = ref(format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd"));
+const route = useRoute();
+const week = ref(typeof route.query.week === "string" ? route.query.week : format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd"));
 const days = computed(() => Array.from({ length: 7 }, (_, i) => format(addDays(parseISO(week.value), i), "yyyy-MM-dd")));
 const weekNumber = computed(() => getISOWeek(parseISO(week.value)));
 const selfId = computed(() => auth.user.value?.id || "");
@@ -499,7 +500,17 @@ watch(shoppingDialog, (open, wasOpen) => {
   if (wasOpen && !open) shoppingDone.value = true;
 });
 
-onMounted(() => run(refresh));
+onMounted(() => run(async () => {
+  await refresh();
+  // Coming from an idea: open the planning matrix for that dish right away.
+  const recipeId = typeof route.query.plan === "string" ? route.query.plan : "";
+  if (recipeId && data.value?.state.facts?.[recipeId]) {
+    presetSlot.value = null;
+    editing.value = false;
+    dialog.value = true;
+    choose(recipeId);
+  }
+}));
 </script>
 
 <style scoped>

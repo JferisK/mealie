@@ -15,6 +15,7 @@ from mealie.repos.repository_household_planner import RepositoryHouseholdPlanner
 from mealie.schema.household_planner.models import (
     AllocationIn,
     BatchIn,
+    IdeaIn,
     IngredientIn,
     MovementIn,
     Nutrients,
@@ -285,3 +286,19 @@ def test_native_recipe_nutrition_uses_explicit_servings(service, session):
     assert recipe.recipe_servings == 2
     assert recipe.nutrition.calories == "350.0"
     assert recipe.nutrition.fat_content is None
+
+
+def test_ideas_merge_likes_and_toggle(service):
+    jakob, sanja, recipe = uuid4(), uuid4(), uuid4()
+    service.add_idea(IdeaIn(week_start=MONDAY, recipe_id=recipe), "Curry", "curry", jakob)
+    service.add_idea(IdeaIn(week_start=MONDAY, recipe_id=recipe, note="bitte"), "Curry", "curry", sanja)
+    (idea,) = service.state.ideas.values()
+    assert idea.proposed_by == jakob and idea.likes == [jakob, sanja]
+    service.toggle_like(idea.id, sanja)
+    assert idea.likes == [jakob]
+    service.add_idea(IdeaIn(week_start=MONDAY + timedelta(days=7), recipe_id=recipe), "Curry", "curry", sanja)
+    assert len(service.state.ideas) == 2
+    service.remove_idea(idea.id)
+    assert len(service.state.ideas) == 1
+    with pytest.raises(ValidationError):
+        IdeaIn(week_start=MONDAY + timedelta(days=1), recipe_id=recipe)

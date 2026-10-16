@@ -25,6 +25,7 @@
       </v-btn-toggle>
     </header>
     <PlannerWeek v-if="section === 'week'" />
+    <PlannerIdeas v-else-if="section === 'ideas'" />
     <PlannerPortions v-else :section="section" />
   </div>
 </template>
@@ -33,10 +34,11 @@
 import { mdiCalendarMonth, mdiScaleBalance } from "@mdi/js";
 import PlannerPortions from "~/components/Domain/Planner/PlannerPortions.vue";
 import PlannerWeek from "~/components/Domain/Planner/PlannerWeek.vue";
+import PlannerIdeas from "~/components/Domain/Planner/PlannerIdeas.vue";
 import { useAuthBackend } from "~/composables/use-auth-backend";
 
 const props = defineProps<{
-  section: "week" | "cook" | "freezer" | "goals";
+  section: "ideas" | "week" | "cook" | "freezer" | "goals";
   title: string;
   subtitle?: string;
 }>();

@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiPotSteam, mdiSnowflake, mdiTarget } from "@mdi/js";
+import { mdiLightbulbOnOutline, mdiPotSteam, mdiSnowflake, mdiTarget } from "@mdi/js";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import type { SideBarLink } from "~/types/application-types";
 import { useGroupSelf } from "~/composables/use-groups";
@@ -236,6 +236,12 @@ const topLinks = computed<SideBarLink[]>(() => [
     to: `/g/${groupSlug.value}/recipes/finder`,
     title: i18n.t("recipe-finder.recipe-finder"),
     restricted: false,
+  },
+  {
+    icon: mdiLightbulbOnOutline,
+    title: i18n.t("household-planner.ideasTab"),
+    to: "/household/ideas",
+    restricted: true,
   },
   {
     icon: $globals.icons.calendarMultiselect,

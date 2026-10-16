@@ -163,7 +163,7 @@ const auth = useMealieAuth();
 const t = (key: string) => i18n.t(`household-planner.${key}`);
 const { api, data, personal, busy, error, run, refresh, mutate, privateMutate } = useHouseholdPlanner();
 const route = useRoute();
-const pageProps = defineProps<{ section?: "week" | "cook" | "freezer" | "goals" }>();
+const pageProps = defineProps<{ section?: "ideas" | "week" | "cook" | "freezer" | "goals" }>();
 const tab = computed(() => pageProps.section ?? (["freezer", "goals"].includes(String(route.query.section)) ? String(route.query.section) : "cook"));
 const nativeApi = useUserApi();
 const { shoppingLists, open: shoppingDialog, getShoppingLists } = useAddToShoppingListDialog();

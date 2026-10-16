@@ -1391,6 +1391,18 @@
     "calcMissing": "Enter weight, height, birth date, formula and reference weight to see your needs here.",
     "adoptGoal": "Use as goal",
     "advanced": "Advanced",
-    "mealPreferences": "Meal preferences"
+    "mealPreferences": "Meal preferences",
+    "ideasTab": "Ideas",
+    "ideasHint": "Collect what you feel like eating. Vote and move favourites into the week plan.",
+    "proposeIdea": "Suggest a dish",
+    "noIdeas": "No ideas for this week yet",
+    "noIdeasHint": "Suggest recipes you would like to eat – then decide together.",
+    "noFactsShort": "Nutrition missing",
+    "needFactsShort": "Add nutrition first, then plan",
+    "proposedBy": "by",
+    "like": "Like",
+    "planned": "Planned",
+    "toWeekPlan": "Add to week plan",
+    "ideaNote": "Comment (optional)"
   }
 }

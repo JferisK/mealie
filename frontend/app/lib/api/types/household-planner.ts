@@ -165,6 +165,26 @@ export interface PlannerState {
   plans?: {
     [k: string]: PlanOut;
   };
+  ideas?: {
+    [k: string]: IdeaOut;
+  };
+}
+export interface IdeaIn {
+  id?: string;
+  week_start: string;
+  recipe_id: string;
+  note?: string;
+}
+export interface IdeaOut {
+  id?: string;
+  week_start: string;
+  recipe_id: string;
+  note?: string;
+  name: string;
+  slug: string;
+  proposed_by: string;
+  created_at: string;
+  likes?: string[];
 }
 export interface RecipeFactsIn {
   recipe_id: string;

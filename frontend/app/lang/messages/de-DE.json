@@ -1391,6 +1391,18 @@
     "calcMissing": "Trag Gewicht, Größe, Geburtsdatum, Formel und Referenzgewicht ein – dann siehst du hier deinen Bedarf.",
     "adoptGoal": "Als Ziel übernehmen",
     "advanced": "Erweitert",
-    "mealPreferences": "Essensvorlieben"
+    "mealPreferences": "Essensvorlieben",
+    "ideasTab": "Ideen",
+    "ideasHint": "Sammelt, worauf ihr Lust habt. Stimmt ab und übernehmt die Favoriten in den Wochenplan.",
+    "proposeIdea": "Idee vorschlagen",
+    "noIdeas": "Noch keine Ideen für diese Woche",
+    "noIdeasHint": "Schlagt Rezepte vor, die ihr gern essen würdet – ihr entscheidet danach gemeinsam.",
+    "noFactsShort": "Nährwerte fehlen noch",
+    "needFactsShort": "Erst Nährwerte ergänzen lassen, dann einplanen",
+    "proposedBy": "von",
+    "like": "Gefällt mir",
+    "planned": "Eingeplant",
+    "toWeekPlan": "In den Wochenplan",
+    "ideaNote": "Kommentar (optional)"
   }
 }

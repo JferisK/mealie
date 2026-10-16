@@ -8,6 +8,8 @@ from mealie.repos.repository_household_planner import RepositoryHouseholdPlanner
 from mealie.schema.household_planner.models import (
     BatchIn,
     BatchOut,
+    IdeaIn,
+    IdeaOut,
     MovementIn,
     MovementOut,
     PlanIn,
@@ -96,6 +98,35 @@ class PlannerService:
             )
         batch.remaining = max(0, remaining)
         self.state.movements[key] = MovementOut(**data.model_dump(), at=datetime.now(UTC), actor=actor)
+
+    def add_idea(self, data: IdeaIn, name: str, slug: str, actor: UUID) -> None:
+        """One idea per recipe and week; proposing an existing idea counts as a like."""
+        existing = next(
+            (i for i in self.state.ideas.values() if i.week_start == data.week_start and i.recipe_id == data.recipe_id),
+            None,
+        )
+        if existing:
+            if actor not in existing.likes:
+                existing.likes.append(actor)
+            return
+        if len(self.state.ideas) >= 2000:
+            raise ValueError("Too many ideas; remove old ones first")
+        self.state.ideas[str(data.id)] = IdeaOut(
+            **data.model_dump(), name=name, slug=slug, proposed_by=actor, created_at=datetime.now(UTC), likes=[actor]
+        )
+
+    def toggle_like(self, idea_id: UUID, actor: UUID) -> None:
+        idea = self.state.ideas.get(str(idea_id))
+        if not idea:
+            raise ValueError("Unknown idea")
+        if actor in idea.likes:
+            idea.likes.remove(actor)
+        else:
+            idea.likes.append(actor)
+
+    def remove_idea(self, idea_id: UUID) -> None:
+        if not self.state.ideas.pop(str(idea_id), None):
+            raise ValueError("Unknown idea")
 
     def validate_plan(self, plan: PlanIn, member_ids: set[UUID]) -> dict:
         wanted: dict[str, float] = {}

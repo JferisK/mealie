@@ -114,11 +114,33 @@ class MovementOut(MovementIn):
     actor: UUID
 
 
+class IdeaIn(Contract):
+    id: UUID = Field(default_factory=uuid4)
+    week_start: date
+    recipe_id: UUID
+    note: str = Field(default="", max_length=500)
+
+    @model_validator(mode="after")
+    def monday(self):
+        if self.week_start.weekday() != 0:
+            raise ValueError("Week starts on Monday")
+        return self
+
+
+class IdeaOut(IdeaIn):
+    name: str
+    slug: str
+    proposed_by: UUID
+    created_at: datetime
+    likes: list[UUID] = Field(default_factory=list)
+
+
 class PlannerState(Contract):
     facts: dict[str, RecipeFactsOut] = Field(default_factory=dict)
     batches: dict[str, BatchOut] = Field(default_factory=dict)
     movements: dict[str, MovementOut] = Field(default_factory=dict)
     plans: dict[str, PlanOut] = Field(default_factory=dict)
+    ideas: dict[str, IdeaOut] = Field(default_factory=dict)
 
 
 class StateOut(Contract):

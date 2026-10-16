@@ -98,6 +98,30 @@ async def planner_state() -> dict:
 
 
 @mcp.tool()
+async def week_ideas(week_start: str) -> list:
+    """List the household's dish ideas for a Monday-start week (YYYY-MM-DD), most liked first."""
+    state = await request("GET", "/api/households/planning")
+    ideas = [i for i in state["state"].get("ideas", {}).values() if i["week_start"] == week_start]
+    return sorted(ideas, key=lambda i: (-len(i["likes"]), i["created_at"]))
+
+
+@mcp.tool()
+async def propose_idea(week_start: str, recipe_id: str, revision: int, note: str = "") -> dict:
+    """
+    Suggest an existing Mealie recipe as a dish idea for a Monday-start week. Proposing an idea that already
+    exists counts as a like. Ideas are not a plan: the household decides and plans them separately.
+    """
+    payload = {"week_start": week_start, "recipe_id": recipe_id, "note": note}
+    return await request("POST", f"/api/households/planning/ideas?revision={revision}", payload)
+
+
+@mcp.tool()
+async def like_idea(idea_id: str, revision: int) -> dict:
+    """Toggle the caller's like on a dish idea."""
+    return await request("POST", f"/api/households/planning/ideas/{path_part(idea_id)}/like?revision={revision}", {})
+
+
+@mcp.tool()
 async def household_members() -> list:
     """Resolve member IDs and shared meal preferences for personal portions; no weight or medical history."""
     return await request("GET", "/api/households/planning/members")
