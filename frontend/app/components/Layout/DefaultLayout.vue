@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiNutrition } from "@mdi/js";
+import { mdiPotSteam, mdiScaleBalance, mdiSnowflake, mdiTarget } from "@mdi/js";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import type { SideBarLink } from "~/types/application-types";
 import { useGroupSelf } from "~/composables/use-groups";
@@ -244,9 +244,27 @@ const topLinks = computed<SideBarLink[]>(() => [
     restricted: true,
   },
   {
-    icon: mdiNutrition,
-    title: i18n.t("household-planner.nutritionNav"),
-    to: "/household/nutrition",
+    icon: mdiScaleBalance,
+    title: i18n.t("household-planner.navWeek"),
+    to: "/household/portions",
+    restricted: true,
+  },
+  {
+    icon: mdiPotSteam,
+    title: i18n.t("household-planner.cookTab"),
+    to: "/household/cooking",
+    restricted: true,
+  },
+  {
+    icon: mdiSnowflake,
+    title: i18n.t("household-planner.stockTab"),
+    to: "/household/freezer",
+    restricted: true,
+  },
+  {
+    icon: mdiTarget,
+    title: i18n.t("household-planner.goalsTab"),
+    to: "/household/goals",
     restricted: true,
   },
   {
