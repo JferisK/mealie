@@ -102,7 +102,7 @@ class HouseholdPlannerController(BaseUserController):
     @router.put("/recipe-facts", response_model=StateOut)
     def recipe_facts(self, data: RecipeFactsIn, revision: int = Query(ge=0)):
         s = self._service(revision)
-        recipe = self.repos.recipes.get_one(data.recipe_id)
+        recipe = self.repos.recipes.get_one(data.recipe_id, key="id")
         if not recipe or recipe.household_id != self.household_id:
             raise HTTPException(404, "Recipe not found in this household")
         if (data.gluten_free == "yes" or data.lactose_free == "yes") and not data.evidence.strip():
