@@ -8,9 +8,13 @@
           <span class="goals-hero__sep" aria-hidden="true">·</span>
           <strong>{{ number(active.goals.protein) }}</strong> g {{ t('protein') }}
         </p>
-        <p v-if="weekAverage" class="goals-hero__week">
+        <p v-if="weekAverage && !weekAverage.incomplete" class="goals-hero__week">
           {{ t('plannedThisWeek') }}: Ø {{ number(weekAverage.calories) }} kcal · {{ number(weekAverage.protein) }} g
+          {{ t('plannedDays', { n: weekAverage.days }) }}
           <span :class="weekDeltaClass">({{ weekDelta }})</span>
+        </p>
+        <p v-else-if="weekAverage" class="goals-hero__week">
+          {{ t('nutritionIncomplete') }}
         </p>
         <p class="goals-hero__since">
           {{ t('activeSince') }} {{ dateLabel(active.confirmed_at) }}
@@ -235,7 +239,7 @@ import type { GoalsIn, PersonalOut, ProfileIn } from "~/lib/api/types/household-
 const props = defineProps<{
   personal: PersonalOut;
   busy: boolean;
-  weekAverage?: { calories: number; protein: number } | null;
+  weekAverage?: { calories: number; protein: number; days: number; incomplete: boolean } | null;
 }>();
 const emit = defineEmits<{
   saveProfile: [profile: ProfileIn];
@@ -244,7 +248,7 @@ const emit = defineEmits<{
   manual: [goals: GoalsIn];
 }>();
 const i18n = useI18n();
-const t = (key: string) => i18n.t(`household-planner.${key}`);
+const t = (key: string, params: Record<string, unknown> = {}) => i18n.t(`household-planner.${key}`, params);
 
 const activityLevels = computed(() => [
   { value: 1.2, title: t("activitySitting"), hint: t("activitySittingHint") },
@@ -322,15 +326,15 @@ function saveWeight() {
 
 <style scoped>
 .goals {
-  --g-line: rgba(var(--v-theme-on-surface), 0.09);
-  --g-soft: rgba(var(--v-theme-on-surface), 0.62);
+  --g-line: var(--fork-hairline);
+  --g-soft: var(--fork-ink-soft);
   max-width: 760px;
 }
 
 .goals-hero {
-  padding: 22px 24px;
-  margin-bottom: 20px;
-  border-radius: 18px;
+  padding: 20px 24px;
+  margin-bottom: var(--fork-stack);
+  border-radius: var(--fork-radius-card);
   background: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-on-primary));
 }
@@ -379,14 +383,14 @@ function saveWeight() {
 }
 
 .calc {
-  padding: 22px 24px;
+  padding: 20px 24px;
   border: 1px solid var(--g-line);
-  border-radius: 18px;
+  border-radius: var(--fork-radius-card);
   background: rgb(var(--v-theme-surface));
 }
 
 .calc h2 {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 700;
   margin-bottom: 16px;
 }
@@ -460,8 +464,10 @@ legend {
   gap: 2px;
   padding: 10px 12px;
   border: 1px solid var(--g-line);
-  border-radius: 12px;
+  min-height: 44px;
+  border-radius: var(--fork-radius-control);
   background: transparent;
+  color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -485,8 +491,19 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
+.calc-choice,
 .calc-choice--compact {
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.calc-choice--inline {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (min-width: 600px) {
+  .calc-choice--compact:not(.calc-choice--inline) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .calc-choice--inline {
@@ -501,6 +518,7 @@ summary:focus-visible {
 
 .calc-step {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   padding: 6px 0;
@@ -534,14 +552,21 @@ summary:focus-visible {
 }
 
 .goals-more {
-  margin-top: 20px;
-  border-top: 1px solid var(--g-line);
+  margin-top: var(--fork-stack);
+  padding: 0 24px;
+  border: 1px solid var(--g-line);
+  border-radius: var(--fork-radius-card);
+  background: rgb(var(--v-theme-surface));
 }
 
 .goals-more summary {
-  padding: 16px 0;
+  padding: 15px 0;
   font-weight: 650;
   cursor: pointer;
+}
+
+.goals-more__body {
+  padding-bottom: 20px;
 }
 
 .goals-more__body h3 {
@@ -553,6 +578,10 @@ summary:focus-visible {
   .goals-hero,
   .calc {
     padding: 18px 16px;
+  }
+
+  .goals-more {
+    padding: 0 16px;
   }
 
   .calc-weight__entry {

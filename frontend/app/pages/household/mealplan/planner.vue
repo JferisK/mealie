@@ -1,21 +1,15 @@
 <template>
   <v-container>
-    <!-- Fork: switch between portion week and native calendar -->
-    <v-btn-toggle
-      :model-value="'calendar'"
-      mandatory
-      density="comfortable"
-      variant="outlined"
-      divided
-      class="mb-4"
+    <!-- Fork: way back to the portion-based week plan -->
+    <v-btn
+      variant="text"
+      color="primary"
+      class="mb-2 ml-n3"
+      :prepend-icon="$globals.icons.calendarMultiselect"
+      to="/household/portions"
     >
-      <v-btn value="week" :prepend-icon="mdiScaleBalance" to="/household/portions">
-        {{ $t('household-planner.navWeek') }}
-      </v-btn>
-      <v-btn value="calendar" :prepend-icon="mdiCalendarMonth">
-        {{ $t('household-planner.calendarView') }}
-      </v-btn>
-    </v-btn-toggle>
+      {{ $t('household-planner.weekPlan') }}
+    </v-btn>
     <RecipeDialogAddToShoppingList
       v-if="shoppingLists"
       v-model="shoppingListDialog"
@@ -34,7 +28,7 @@
         <template #activator="{ props }">
           <v-btn
             color="primary"
-            class="mb-2"
+            class="mb-2 fork-wrap-btn"
             v-bind="props"
           >
             <v-icon start>
@@ -128,7 +122,6 @@
 </template>
 
 <script setup lang="ts">
-import { mdiCalendarMonth, mdiScaleBalance } from "@mdi/js";
 import { addDays, differenceInCalendarDays, format, isSameDay, isValid, parseISO } from "date-fns";
 import RecipeDialogAddToShoppingList from "~/components/Domain/Recipe/RecipeDialogAddToShoppingList.vue";
 import { useAddToShoppingListDialog } from "~/composables/shopping-list-page/use-add-to-shopping-list-dialog";

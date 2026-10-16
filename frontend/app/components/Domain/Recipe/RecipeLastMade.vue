@@ -40,7 +40,7 @@
                     :input-value="childRecipe.checked"
                     :label="childRecipe.name"
                     class="my-0 py-0"
-                    color="secondary"
+                    color="primary"
                   />
                 </v-list-item>
               </v-list>
@@ -109,7 +109,19 @@
       </BaseDialog>
     </div>
     <div>
-      <div v-if="lastMadeReady" class="d-flex justify-center flex-wrap">
+      <!-- Fork: compact chip-style button for the recipe header -->
+      <v-btn
+        v-if="lastMadeReady && compact"
+        variant="tonal"
+        color="primary"
+        size="small"
+        :prepend-icon="$globals.icons.calendar"
+        :title="$t('recipe.made-this')"
+        @click="madeThisDialog = true"
+      >
+        {{ $t("general.last-made") }}: {{ lastMade ? $d(new Date(lastMade)) : $t("general.never") }}
+      </v-btn>
+      <div v-else-if="lastMadeReady" class="d-flex justify-center flex-wrap">
         <v-row no-gutters class="d-flex flex-wrap align-center" style="font-size: larger">
           <v-tooltip location="bottom">
             <template #activator="{ props: tooltipProps }">
@@ -152,7 +164,7 @@ import { useHouseholdSelf } from "~/composables/use-households";
 import type { Recipe, RecipeTimelineEventIn, RecipeTimelineEventOut } from "~/lib/api/types/recipe";
 import type { VForm } from "~/types/auto-forms";
 
-const props = defineProps<{ recipe: Recipe }>();
+const props = defineProps<{ recipe: Recipe; compact?: boolean }>();
 const emit = defineEmits<{
   eventCreated: [event: RecipeTimelineEventOut];
 }>();

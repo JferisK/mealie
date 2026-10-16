@@ -3,24 +3,18 @@
     <RecipeDialogAddToShoppingList v-model="shoppingDialog" :recipes="shoppingRecipes" :shopping-lists="shoppingLists" />
 
     <div class="pw-toolbar">
-      <div class="pw-weeknav">
-        <v-btn :icon="mdiChevronLeft" variant="text" :aria-label="t('previous')" :disabled="busy" @click="shiftWeek(-7)" />
-        <div class="pw-weeklabel">
-          <strong>{{ t('weekShort') }} {{ weekNumber }}</strong>
-          <span>{{ shortDate(days[0]!) }} – {{ shortDate(days[6]!) }}</span>
-        </div>
-        <v-btn :icon="mdiChevronRight" variant="text" :aria-label="t('next')" :disabled="busy" @click="shiftWeek(7)" />
-      </div>
+      <PlannerWeekNav v-model="week" :disabled="busy" />
       <div class="pw-actions">
         <v-btn
           variant="tonal"
+          color="primary"
           :prepend-icon="mdiCartOutline"
           :disabled="busy || !freshDishes.length"
           @click="prepareShopping"
         >
           {{ t('createShopping') }}
         </v-btn>
-        <v-btn color="primary" :prepend-icon="mdiPlus" :disabled="busy || !data" @click="openPicker()">
+        <v-btn color="primary" variant="flat" :prepend-icon="mdiPlus" :disabled="busy || !data" @click="openPicker()">
           {{ t('planDish') }}
         </v-btn>
       </div>
@@ -36,184 +30,214 @@
     >
       {{ error }}
     </v-alert>
-    <div v-if="shoppingDone" class="pw-hint">
-      <v-icon :icon="mdiCheck" size="18" />
+    <v-alert
+      v-if="shoppingDone"
+      type="success"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      closable
+      @click:close="shoppingDone = false"
+    >
       {{ t('shoppingAdded') }}
-      <NuxtLink to="/shopping-lists">
+      <NuxtLink to="/shopping-lists" class="pw-link">
         {{ t('toShopping') }}
       </NuxtLink>
-    </div>
+    </v-alert>
     <v-progress-linear v-if="busy && !data" indeterminate />
 
+    <div v-if="data && !recipes.length" class="fork-empty mb-4">
+      <v-icon :icon="mdiPotSteamOutline" size="32" />
+      <strong>{{ t('noFactsTitle') }}</strong>
+      <p>{{ t('needFacts') }}</p>
+    </div>
+
     <div v-if="data" class="pw-grid">
-      <section v-for="day in days" :key="day" class="pw-day" :class="{ 'is-today': day === today }">
+      <section v-for="day in days" :key="day" class="pw-day" :class="{ 'is-today': day === today }" :aria-label="longDay(day)">
         <header class="pw-day__head">
-          <span>{{ weekday(day) }}</span>
+          <span class="pw-day__name">{{ weekday(day) }}</span>
           <strong>{{ Number(day.slice(8)) }}.</strong>
+          <span v-if="day === today" class="pw-day__today">{{ t('today') }}</span>
         </header>
         <div v-for="meal in meals" :key="meal" class="pw-slot">
           <span class="pw-slot__label">{{ t(meal) }}</span>
-          <button
-            v-for="dish in dishesIn(day, meal)"
-            :key="dish.recipeId"
-            type="button"
-            class="pw-dish"
-            :class="{ 'is-eaten': dish.eaten }"
-            @click="openEditor(dish.recipeId)"
-          >
-            <img v-if="dish.image" :src="dish.image" alt="" loading="lazy">
-            <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" size="16" /></span>
-            <span class="pw-dish__name">{{ dish.name }}</span>
-            <span class="pw-dish__people">
-              <span v-for="m in dish.people" :key="m.id" class="pw-avatar" :style="{ background: m.color }" :title="m.name">{{ m.initial }}</span>
-              <v-icon v-if="dish.frozen" :icon="mdiSnowflake" size="14" class="ml-1" />
-            </span>
-          </button>
-          <button
-            v-if="!dishesIn(day, meal).length"
-            type="button"
-            class="pw-empty"
-            :aria-label="`${t('planDish')}: ${weekday(day)} ${t(meal)}`"
-            @click="openPicker({ day, meal })"
-          >
-            <v-icon :icon="mdiPlus" size="16" />
-          </button>
+          <div class="pw-slot__dishes">
+            <button
+              v-for="dish in dishesIn(day, meal)"
+              :key="dish.recipeId"
+              type="button"
+              class="pw-dish"
+              :class="{ 'is-eaten': dish.eaten }"
+              :aria-label="`${dish.name}, ${dish.people.map(p => p.name).join(', ')}`"
+              @click="openEditor(dish.recipeId)"
+            >
+              <img v-if="dish.image" :src="dish.image" alt="" loading="lazy">
+              <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" size="16" /></span>
+              <span class="pw-dish__name">{{ dish.name }}</span>
+              <span class="pw-dish__people" aria-hidden="true">
+                <span v-for="m in dish.people" :key="m.id" class="fork-person" :style="{ '--c': m.color }" :title="m.name">{{ m.label }}</span>
+                <v-icon v-if="dish.frozen" :icon="mdiSnowflake" size="14" class="pw-frozen" :title="t('fromFreezer')" />
+                <v-icon v-if="dish.eaten" :icon="mdiCheck" size="14" :title="t('eaten')" />
+              </span>
+            </button>
+            <button
+              v-if="!dishesIn(day, meal).length"
+              type="button"
+              class="pw-empty"
+              :aria-label="`${t('planDish')}: ${longDay(day)}, ${t(meal)}`"
+              @click="openPicker({ day, meal })"
+            >
+              <v-icon :icon="mdiPlus" size="18" />
+            </button>
+          </div>
         </div>
-        <footer class="pw-day__totals">
-          <div v-for="m in memberList" :key="m.id" class="pw-total">
-            <span class="pw-avatar" :style="{ background: m.color }">{{ m.initial }}</span>
-            <span>{{ number(dayTotal(day, m.id).calories) }} kcal · {{ number(dayTotal(day, m.id).protein) }} g</span>
-            <div v-if="m.id === selfId && goal" class="pw-bar" :title="`${t('dailyGoal')}: ${goal.calories} kcal`">
-              <i :style="{ width: `${Math.min(100, (dayTotal(day, m.id).calories || 0) / goal.calories * 100)}%` }" />
-            </div>
+        <footer v-if="totalsFor(day).length" class="pw-day__totals">
+          <div v-for="row in totalsFor(day)" :key="row.person.id" class="pw-total">
+            <span class="fork-person" :style="{ '--c': row.person.color }" :title="row.person.name">{{ row.person.label }}</span>
+            <span v-if="row.calories == null" class="pw-total__value is-unknown">{{ t('nutritionUnknown') }}</span>
+            <span v-else class="pw-total__value">{{ number(row.calories) }} kcal · {{ number(row.protein) }} g {{ t('proteinShort') }}</span>
+            <template v-if="row.goal && row.calories != null">
+              <span class="pw-total__pct">{{ Math.round(row.calories / row.goal * 100) }} %</span>
+              <div
+                class="pw-bar"
+                role="progressbar"
+                :aria-valuenow="Math.round(row.calories)"
+                aria-valuemin="0"
+                :aria-valuemax="row.goal"
+                :aria-label="`${t('ofDailyGoal')} ${number(row.goal)} kcal`"
+              >
+                <i :class="{ 'is-over': row.calories > row.goal * 1.05 }" :style="{ width: `${Math.min(100, row.calories / row.goal * 100)}%` }" />
+              </div>
+            </template>
           </div>
         </footer>
       </section>
     </div>
-    <p v-if="data && !recipes.length" class="pw-hint">
-      {{ t('needFacts') }}
+    <p v-if="data && goal" class="pw-legend">
+      {{ t('goalLegend') }} {{ number(goal.calories) }} kcal
     </p>
 
-    <v-dialog v-model="dialog" scrollable max-width="760" :fullscreen="$vuetify.display.xs">
-      <v-card rounded="xl">
-        <template v-if="step === 'pick'">
-          <v-card-title class="pw-dialog__title">
-            {{ t('chooseDish') }}
-          </v-card-title>
-          <v-card-text>
-            <v-text-field
-              v-model="search"
-              :prepend-inner-icon="mdiMagnify"
-              :label="t('searchDish')"
-              variant="outlined"
-              density="comfortable"
-              hide-details
-              clearable
-              autofocus
-              class="mb-4"
-            />
-            <div class="pw-picklist">
-              <button v-for="r in filteredRecipes" :key="r.recipe_id" type="button" class="pw-pick" @click="choose(r.recipe_id)">
-                <img v-if="r.image" :src="imageFor(r.recipe_id)" alt="" loading="lazy">
-                <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" /></span>
-                <span class="pw-pick__body">
-                  <strong>{{ r.name }}</strong>
-                  <span>{{ number(r.per_serving.calories) }} kcal · {{ number(r.per_serving.protein) }} g {{ t('protein') }}</span>
-                  <span class="pw-badges">
-                    <em v-if="r.gluten_free === 'yes'">{{ t('gfShort') }}</em>
-                    <em v-if="r.lactose_free === 'yes'">{{ t('lfShort') }}</em>
-                    <em v-if="stockFor(r.recipe_id) > 0" class="is-stock"><v-icon :icon="mdiSnowflake" size="12" /> {{ number(stockFor(r.recipe_id)) }} {{ t('inStock') }}</em>
-                  </span>
-                </span>
-              </button>
-            </div>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn @click="dialog = false">
-              {{ t('close') }}
-            </v-btn>
-          </v-card-actions>
-        </template>
+    <PlannerSheet
+      v-model="dialog"
+      fullscreen
+      max-width="760"
+      :title="step === 'pick' || !chosen ? t('chooseDish') : chosen.name"
+      :subtitle="step === 'pick' || !chosen ? '' : t('whenWho')"
+    >
+      <template v-if="step === 'when' && !editing" #prepend>
+        <v-btn :icon="mdiArrowLeft" variant="text" :aria-label="t('back')" @click="step = 'pick'" />
+      </template>
 
-        <template v-else-if="chosen">
-          <v-card-title class="pw-dialog__title">
+      <template v-if="step === 'pick'">
+        <v-text-field
+          v-model="search"
+          :prepend-inner-icon="mdiMagnify"
+          :label="t('searchDish')"
+          variant="outlined"
+          density="comfortable"
+          hide-details
+          clearable
+          class="mb-4"
+        />
+        <div class="pw-picklist">
+          <button v-for="r in filteredRecipes" :key="r.recipe_id" type="button" class="pw-pick" @click="choose(r.recipe_id)">
+            <img v-if="r.image" :src="imageFor(r.recipe_id)" alt="" loading="lazy">
+            <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" /></span>
+            <span class="pw-pick__body">
+              <strong>{{ r.name }}</strong>
+              <span>{{ number(r.per_serving.calories) }} kcal · {{ number(r.per_serving.protein) }} g {{ t('protein') }}</span>
+              <span class="pw-badges">
+                <em v-if="r.gluten_free === 'yes'">{{ t('gfShort') }}</em>
+                <em v-if="r.lactose_free === 'yes'">{{ t('lfShort') }}</em>
+                <em v-if="stockFor(r.recipe_id) > 0" class="is-stock"><v-icon :icon="mdiSnowflake" size="12" /> {{ number(stockFor(r.recipe_id)) }} {{ t('inStock') }}</em>
+              </span>
+            </span>
+          </button>
+        </div>
+        <p v-if="!filteredRecipes.length" class="pw-note">
+          {{ t('noDishMatches') }}
+        </p>
+      </template>
+
+      <template v-else-if="chosen">
+        <div class="pw-plan">
+          <section v-for="day in days" :key="day" class="pw-plan__day" :class="{ 'is-today': day === today }">
+            <h3 class="pw-plan__dayname">
+              {{ weekday(day) }} {{ Number(day.slice(8)) }}.
+            </h3>
+            <div v-for="meal in meals" :key="meal" class="pw-plan__meal">
+              <span class="pw-plan__meallabel">{{ t(meal) }}</span>
+              <div class="pw-chips">
+                <button
+                  v-for="m in people"
+                  :key="m.id"
+                  type="button"
+                  class="pw-chip"
+                  :style="{ '--c': m.color }"
+                  :aria-pressed="isSelected(m.id, day, meal)"
+                  :aria-label="`${m.name}, ${longDay(day)}, ${t(meal)}`"
+                  :disabled="!!blockedReason(m.id, day, meal)"
+                  :title="blockedReason(m.id, day, meal) || m.name"
+                  @click="toggle(m.id, day, meal)"
+                >
+                  <v-icon v-if="isSelected(m.id, day, meal)" :icon="mdiCheck" size="16" />
+                  <v-icon v-else-if="blockedReason(m.id, day, meal)" :icon="mdiLockOutline" size="14" />
+                  {{ m.name }}
+                </button>
+              </div>
+              <small v-for="note in replaceNotes(day, meal)" :key="note" class="pw-replace">{{ note }}</small>
+            </div>
+          </section>
+        </div>
+        <p v-if="restrictionNote" class="pw-note">
+          {{ restrictionNote }}
+        </p>
+        <v-switch
+          v-if="stockFor(chosen.recipe_id) > 0"
+          v-model="useFreezer"
+          color="primary"
+          hide-details
+          density="compact"
+          class="mt-3"
+          :label="`${t('useFreezer')} (${number(stockFor(chosen.recipe_id))} ${t('inStock')})`"
+        />
+        <div v-if="eatable.length" class="pw-eat">
+          <h4 class="fork-section-title">
+            {{ t('markEaten') }}
+          </h4>
+          <div v-for="e in eatable" :key="e.id" class="pw-eat__row">
+            <span>{{ weekday(e.day) }} · {{ t(e.meal) }} · {{ memberName(e.user_id) }}</span>
             <v-btn
-              v-if="!editing"
-              :icon="mdiArrowLeft"
-              variant="text"
               size="small"
-              :aria-label="t('back')"
-              @click="step = 'pick'"
-            />
-            {{ chosen.name }}
-          </v-card-title>
-          <v-card-subtitle>{{ t('whenWho') }}</v-card-subtitle>
-          <v-card-text>
-            <div class="pw-matrix" role="grid">
-              <div class="pw-matrix__row pw-matrix__head" role="row">
-                <span />
-                <span v-for="meal in meals" :key="meal" role="columnheader">{{ t(meal) }}</span>
-              </div>
-              <div v-for="day in days" :key="day" class="pw-matrix__row" role="row">
-                <span class="pw-matrix__day" role="rowheader">{{ weekday(day) }} {{ Number(day.slice(8)) }}.</span>
-                <div v-for="meal in meals" :key="meal" class="pw-matrix__cell" role="gridcell">
-                  <div class="pw-toggles">
-                    <button
-                      v-for="m in memberList"
-                      :key="m.id"
-                      type="button"
-                      class="pw-toggle"
-                      :style="{ '--c': m.color }"
-                      :aria-pressed="isSelected(m.id, day, meal)"
-                      :disabled="!!blockedReason(m.id, day, meal)"
-                      :title="blockedReason(m.id, day, meal) || m.name"
-                      @click="toggle(m.id, day, meal)"
-                    >
-                      {{ m.initial }}
-                    </button>
-                  </div>
-                  <small v-for="note in replaceNotes(day, meal)" :key="note" class="pw-replace">{{ note }}</small>
-                </div>
-              </div>
-            </div>
-            <p v-if="restrictionNote" class="pw-note">
-              {{ restrictionNote }}
-            </p>
-            <v-switch
-              v-if="stockFor(chosen.recipe_id) > 0"
-              v-model="useFreezer"
+              variant="tonal"
               color="primary"
-              hide-details
-              density="compact"
-              class="mt-3"
-              :label="`${t('useFreezer')} (${number(stockFor(chosen.recipe_id))} ${t('inStock')})`"
-            />
-            <div v-if="eatable.length" class="pw-eat">
-              <h4>{{ t('markEaten') }}</h4>
-              <div v-for="e in eatable" :key="e.id" class="pw-eat__row">
-                <span>{{ weekday(e.day) }} · {{ t(e.meal) }} · {{ memberName(e.user_id) }}</span>
-                <v-btn size="small" variant="tonal" :prepend-icon="mdiCheck" :disabled="busy" @click="consume(e.id!)">
-                  {{ t(e.batch_id ? 'withdraw' : 'eaten') }}
-                </v-btn>
-              </div>
-            </div>
-          </v-card-text>
-          <v-card-actions>
-            <v-btn v-if="editing" color="error" variant="text" :disabled="busy" @click="removeDish">
-              {{ t('removeFromWeek') }}
+              :prepend-icon="mdiCheck"
+              :disabled="busy"
+              @click="consume(e.id!)"
+            >
+              {{ t(e.batch_id ? 'withdraw' : 'eaten') }}
             </v-btn>
-            <v-spacer />
-            <v-btn @click="dialog = false">
-              {{ t('close') }}
-            </v-btn>
-            <v-btn color="primary" variant="flat" :loading="busy" @click="saveDish">
-              {{ t('save') }}
-            </v-btn>
-          </v-card-actions>
-        </template>
-      </v-card>
-    </v-dialog>
+          </div>
+        </div>
+      </template>
+
+      <template v-if="step === 'when' && chosen" #actions>
+        <v-btn
+          v-if="editing"
+          color="error"
+          variant="text"
+          :prepend-icon="mdiDeleteOutline"
+          :disabled="busy"
+          @click="removeDish"
+        >
+          {{ t('removeFromWeek') }}
+        </v-btn>
+        <v-spacer />
+        <v-btn color="primary" variant="flat" :loading="busy" @click="saveDish">
+          {{ t('save') }}
+        </v-btn>
+      </template>
+    </PlannerSheet>
   </div>
 </template>
 
@@ -222,26 +246,25 @@ import {
   mdiArrowLeft,
   mdiCartOutline,
   mdiCheck,
-  mdiChevronLeft,
-  mdiChevronRight,
+  mdiDeleteOutline,
+  mdiLockOutline,
   mdiMagnify,
   mdiPlus,
   mdiPotSteamOutline,
   mdiSnowflake,
 } from "@mdi/js";
-import { addDays, format, getISOWeek, parseISO, startOfWeek } from "date-fns";
+import { addDays, format, parseISO, startOfWeek } from "date-fns";
 import RecipeDialogAddToShoppingList, { type RecipeWithScale } from "~/components/Domain/Recipe/RecipeDialogAddToShoppingList.vue";
 import { useUserApi } from "~/composables/api";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
 import { useAddToShoppingListDialog } from "~/composables/shopping-list-page/use-add-to-shopping-list-dialog";
 import type { AllocationIn, RecipeFactsOut } from "~/lib/api/types/household-planner";
+import { toPeople, type PlannerMember } from "~/lib/planner/people";
+import { usePlannerPageRefresh } from "~/composables/use-planner-page";
+import PlannerSheet from "~/components/Domain/Planner/PlannerSheet.vue";
+import PlannerWeekNav from "~/components/Domain/Planner/PlannerWeekNav.vue";
 
 type Meal = "breakfast" | "lunch" | "dinner";
-type MemberInfo = {
-  id: string;
-  name: string;
-  meal_preferences?: { gluten_free?: boolean; lactose_free?: boolean; avoid_traces?: boolean };
-};
 
 const i18n = useI18n();
 const auth = useMealieAuth();
@@ -251,21 +274,15 @@ const nativeApi = useUserApi();
 const { shoppingLists, open: shoppingDialog, getShoppingLists } = useAddToShoppingListDialog();
 
 const meals: Meal[] = ["breakfast", "lunch", "dinner"];
-const palette = ["rgb(var(--v-theme-primary))", "rgb(var(--v-theme-secondary))", "rgb(var(--v-theme-accent))"];
 const today = format(new Date(), "yyyy-MM-dd");
 const route = useRoute();
 const week = ref(typeof route.query.week === "string" ? route.query.week : format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd"));
 const days = computed(() => Array.from({ length: 7 }, (_, i) => format(addDays(parseISO(week.value), i), "yyyy-MM-dd")));
-const weekNumber = computed(() => getISOWeek(parseISO(week.value)));
 const selfId = computed(() => auth.user.value?.id || "");
 const goal = computed(() => personal.value?.state.active?.goals);
 
-const memberList = computed(() => (members.value as MemberInfo[]).map((m, i) => ({
-  ...m,
-  initial: (m.name || "?").trim().charAt(0).toUpperCase(),
-  color: palette[i % palette.length]!,
-})));
-const memberName = (id: string) => memberList.value.find(m => m.id === id)?.name || "";
+const people = computed(() => toPeople(members.value as PlannerMember[]));
+const memberName = (id: string) => people.value.find(m => m.id === id)?.name || "";
 
 const plan = computed(() => Object.values(data.value?.state.plans || {}).find(p => p.start === week.value));
 const entries = computed<AllocationIn[]>(() => plan.value?.entries || []);
@@ -273,8 +290,8 @@ const consumed = computed(() => new Set(plan.value?.consumed || []));
 const recipes = computed(() => Object.values(data.value?.state.facts || {}).sort((a, b) => a.name.localeCompare(b.name)));
 
 const number = (v: number | null | undefined) => v == null ? "—" : new Intl.NumberFormat(i18n.locale.value, { maximumFractionDigits: 0 }).format(v);
-const shortDate = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { day: "numeric", month: "short" }).format(parseISO(d));
 const weekday = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { weekday: "short" }).format(parseISO(d));
+const longDay = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { weekday: "long", day: "numeric", month: "long" }).format(parseISO(d));
 const imageFor = (recipeId: string) => `/api/media/recipes/${recipeId}/images/min-original.webp`;
 
 function factsFor(e: AllocationIn): RecipeFactsOut | undefined {
@@ -283,7 +300,7 @@ function factsFor(e: AllocationIn): RecipeFactsOut | undefined {
 }
 
 function dishesIn(day: string, meal: Meal) {
-  const groups = new Map<string, { recipeId: string; name: string; image: string | null; people: typeof memberList.value; eaten: boolean; frozen: boolean }>();
+  const groups = new Map<string, { recipeId: string; name: string; image: string | null; people: typeof people.value; eaten: boolean; frozen: boolean }>();
   for (const e of entries.value.filter(x => x.day === day && x.meal === meal)) {
     const facts = factsFor(e);
     const group = groups.get(e.recipe_id) || {
@@ -294,7 +311,7 @@ function dishesIn(day: string, meal: Meal) {
       eaten: true,
       frozen: false,
     };
-    const member = memberList.value.find(m => m.id === e.user_id);
+    const member = people.value.find(m => m.id === e.user_id);
     if (member) group.people.push(member);
     group.eaten &&= consumed.value.has(e.id!);
     group.frozen ||= !!e.batch_id;
@@ -312,6 +329,15 @@ function dayTotal(day: string, userId: string) {
     protein = protein == null || per?.protein == null ? null : protein + per.protein * e.servings;
   }
   return { calories, protein };
+}
+
+// Totals shown under a day: everyone who eats that day, plus yourself with
+// your daily goal so the bar always has a reference.
+function totalsFor(day: string) {
+  const eating = new Set(entries.value.filter(e => e.day === day).map(e => e.user_id));
+  return people.value
+    .filter(p => eating.has(p.id))
+    .map(person => ({ person, ...dayTotal(day, person.id), goal: person.id === selfId.value ? goal.value?.calories : undefined }));
 }
 
 // Frozen stock not reserved by other weeks' plans.
@@ -357,7 +383,7 @@ function choose(recipeId: string) {
   chosenId.value = recipeId;
   const next = new Set(entries.value.filter(e => e.recipe_id === recipeId).map(e => slotKey(e.user_id, e.day, e.meal)));
   if (presetSlot.value) {
-    for (const m of memberList.value) {
+    for (const m of people.value) {
       if (!blockedReason(m.id, presetSlot.value.day, presetSlot.value.meal)) next.add(slotKey(m.id, presetSlot.value.day, presetSlot.value.meal));
     }
   }
@@ -374,7 +400,7 @@ function openEditor(recipeId: string) {
 }
 
 function restricted(userId: string) {
-  const prefs = (members.value as MemberInfo[]).find(m => m.id === userId)?.meal_preferences;
+  const prefs = (members.value as PlannerMember[]).find(m => m.id === userId)?.meal_preferences;
   const facts = chosen.value;
   if (!prefs || !facts) return "";
   if (prefs.gluten_free && facts.gluten_free !== "yes") return t("notVerifiedGf");
@@ -388,7 +414,7 @@ function blockedReason(userId: string, day: string, meal: Meal) {
   return restricted(userId);
 }
 
-const restrictionNote = computed(() => memberList.value
+const restrictionNote = computed(() => people.value
   .map(m => restricted(m.id) ? `${m.name}: ${restricted(m.id)}` : "")
   .filter(Boolean)
   .join(" · "));
@@ -462,10 +488,7 @@ function consume(entryId: string) {
   });
 }
 
-function shiftWeek(n: number) {
-  week.value = format(addDays(parseISO(week.value), n), "yyyy-MM-dd");
-  shoppingDone.value = false;
-}
+watch(week, () => (shoppingDone.value = false));
 
 // ---- Shopping -----------------------------------------------------------
 const shoppingRecipes = ref<RecipeWithScale[]>([]);
@@ -500,6 +523,8 @@ watch(shoppingDialog, (open, wasOpen) => {
   if (wasOpen && !open) shoppingDone.value = true;
 });
 
+usePlannerPageRefresh(() => run(refresh), busy);
+
 onMounted(() => run(async () => {
   await refresh();
   // Coming from an idea: open the planning matrix for that dish right away.
@@ -515,37 +540,16 @@ onMounted(() => run(async () => {
 
 <style scoped>
 .pw {
-  --pw-line: rgba(var(--v-theme-on-surface), 0.09);
-  --pw-soft: rgba(var(--v-theme-on-surface), 0.62);
-  padding: 8px 16px 32px;
+  container: planner-week / inline-size;
 }
 
 .pw-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px 16px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.pw-weeknav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pw-weeklabel {
-  display: flex;
-  flex-direction: column;
-  min-width: 132px;
-  text-align: center;
-  line-height: 1.2;
-}
-
-.pw-weeklabel span {
-  font-size: 0.82rem;
-  color: var(--pw-soft);
+  margin-bottom: var(--fork-stack);
 }
 
 .pw-actions {
@@ -554,23 +558,16 @@ onMounted(() => run(async () => {
   gap: 8px;
 }
 
-.pw-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 4px 0 14px;
-  color: var(--pw-soft);
-}
-
-.pw-hint a {
-  color: rgb(var(--v-theme-primary));
-  font-weight: 600;
+.pw-link {
+  margin-left: 4px;
+  font-weight: 650;
+  color: inherit;
 }
 
 .pw-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 12px;
 }
 
 .pw-day {
@@ -578,8 +575,8 @@ onMounted(() => run(async () => {
   flex-direction: column;
   min-width: 0;
   background: rgb(var(--v-theme-surface));
-  border: 1px solid var(--pw-line);
-  border-radius: 14px;
+  border: 1px solid var(--fork-hairline);
+  border-radius: var(--fork-radius-card);
   overflow: hidden;
 }
 
@@ -595,43 +592,63 @@ onMounted(() => run(async () => {
   padding: 10px 12px 6px;
 }
 
-.pw-day__head span {
-  font-size: 0.8rem;
-  color: var(--pw-soft);
+.pw-day__name {
+  font-size: 0.85rem;
+  color: var(--fork-ink-soft);
   text-transform: capitalize;
 }
 
 .pw-day__head strong {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   letter-spacing: -0.02em;
 }
 
+.pw-day__today {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgb(var(--v-theme-primary));
+}
+
+/* Meal label beside the dishes: one line per meal instead of two. */
 .pw-slot {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 92px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--pw-line);
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+}
+
+.pw-slot + .pw-slot {
+  border-top: 1px solid var(--fork-hairline);
 }
 
 .pw-slot__label {
-  font-size: 0.72rem;
+  padding-top: 12px;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--pw-soft);
+  color: var(--fork-ink-soft);
+}
+
+.pw-slot__dishes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .pw-dish {
   display: grid;
-  grid-template-columns: 34px 1fr;
-  grid-template-rows: auto auto;
+  grid-template-columns: 36px minmax(0, 1fr);
   column-gap: 8px;
   align-items: center;
   width: 100%;
-  padding: 6px;
-  border: 1px solid var(--pw-line);
-  border-radius: 10px;
+  min-height: 44px;
+  padding: 5px 6px;
+  border: 1px solid var(--fork-hairline);
+  border-radius: var(--fork-radius-control);
   background: rgb(var(--v-theme-background));
+  color: inherit;
   text-align: left;
   font: inherit;
   cursor: pointer;
@@ -642,14 +659,14 @@ onMounted(() => run(async () => {
 }
 
 .pw-dish.is-eaten {
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
 .pw-dish img,
 .pw-dish__ph {
   grid-row: span 2;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   object-fit: cover;
 }
@@ -657,14 +674,15 @@ onMounted(() => run(async () => {
 .pw-dish__ph {
   display: grid;
   place-items: center;
-  background: rgba(var(--v-theme-primary), 0.1);
+  background: var(--fork-tint);
   color: rgb(var(--v-theme-primary));
 }
 
 .pw-dish__name {
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   font-weight: 600;
   line-height: 1.25;
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -674,32 +692,32 @@ onMounted(() => run(async () => {
 
 .pw-dish__people {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 3px;
   margin-top: 3px;
 }
 
-.pw-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
+.pw-dish__people .fork-person {
+  min-width: 18px;
   height: 18px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 700;
-  flex: none;
+  padding: 0 4px;
+  font-size: 0.64rem;
+}
+
+.pw-frozen {
+  color: var(--fork-frozen);
 }
 
 .pw-empty {
   display: grid;
   place-items: center;
-  flex: 1;
+  width: 100%;
   min-height: 44px;
-  border: 1px dashed var(--pw-line);
-  border-radius: 10px;
+  border: 1px dashed var(--fork-hairline-strong);
+  border-radius: var(--fork-radius-control);
   background: transparent;
-  color: var(--pw-soft);
+  color: var(--fork-ink-soft);
   cursor: pointer;
 }
 
@@ -709,29 +727,37 @@ onMounted(() => run(async () => {
 }
 
 .pw-day__totals {
+  display: grid;
+  gap: 6px;
   margin-top: auto;
-  padding: 8px 10px 10px;
-  border-top: 1px solid var(--pw-line);
-  font-size: 0.74rem;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--fork-hairline);
+  background: rgba(var(--v-theme-on-surface), 0.02);
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
 
 .pw-total {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px 8px;
 }
 
-.pw-total + .pw-total {
-  margin-top: 4px;
+.pw-total__value.is-unknown {
+  color: var(--fork-ink-soft);
+  font-style: italic;
+}
+
+.pw-total__pct {
+  font-weight: 700;
 }
 
 .pw-bar {
-  flex-basis: 100%;
-  height: 4px;
-  border-radius: 4px;
-  background: var(--pw-line);
+  grid-column: 2 / -1;
+  height: 5px;
+  border-radius: 5px;
+  background: var(--fork-hairline-strong);
   overflow: hidden;
 }
 
@@ -741,28 +767,66 @@ onMounted(() => run(async () => {
   background: rgb(var(--v-theme-primary));
 }
 
-/* Dialog */
-.pw-dialog__title {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-top: 18px;
-  font-weight: 700;
+.pw-bar i.is-over {
+  background: rgb(var(--v-theme-warning));
 }
 
+.pw-legend {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--fork-ink-soft);
+}
+
+/* Wide content area: seven columns, so the meal label goes above the dishes.
+   A container query, because the sidebar decides how wide the content is. */
+@container planner-week (min-width: 1120px) {
+  .pw-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .pw-slot {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    min-height: 96px;
+  }
+
+  .pw-slot__label {
+    padding-top: 2px;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .pw-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pw-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .pw-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Dialog ------------------------------------------------------------------ */
 .pw-picklist {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .pw-pick {
   display: flex;
   gap: 10px;
+  align-items: center;
   padding: 8px;
-  border: 1px solid var(--pw-line);
-  border-radius: 12px;
+  border: 1px solid var(--fork-hairline);
+  border-radius: var(--fork-radius-control);
   background: rgb(var(--v-theme-surface));
+  color: inherit;
   text-align: left;
   font: inherit;
   cursor: pointer;
@@ -774,8 +838,8 @@ onMounted(() => run(async () => {
 
 .pw-pick img,
 .pw-pick .pw-dish__ph {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   border-radius: 10px;
   object-fit: cover;
   flex: none;
@@ -787,13 +851,14 @@ onMounted(() => run(async () => {
   gap: 2px;
   min-width: 0;
   font-size: 0.82rem;
-  color: var(--pw-soft);
+  color: var(--fork-ink-soft);
 }
 
 .pw-pick__body strong {
   color: rgb(var(--v-theme-on-surface));
   font-size: 0.92rem;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .pw-badges {
@@ -808,106 +873,118 @@ onMounted(() => run(async () => {
   font-size: 0.7rem;
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(var(--v-theme-primary), 0.1);
+  background: var(--fork-tint);
   color: rgb(var(--v-theme-primary));
 }
 
 .pw-badges em.is-stock {
-  background: rgba(var(--v-theme-accent), 0.12);
-  color: rgb(var(--v-theme-accent));
+  background: color-mix(in srgb, var(--fork-frozen) 14%, transparent);
+  color: var(--fork-frozen);
 }
 
-.pw-matrix {
+/* Planning list: one block per day, one row per meal, a chip per person.
+   Works for two people and for six; chips wrap instead of overflowing. */
+.pw-plan {
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
-.pw-matrix__row {
+.pw-plan__day {
   display: grid;
-  grid-template-columns: 64px repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 10px 0;
 }
 
-.pw-matrix__head span {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--pw-soft);
-  text-align: center;
+.pw-plan__day + .pw-plan__day {
+  border-top: 1px solid var(--fork-hairline);
 }
 
-.pw-matrix__day {
-  padding-top: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
+.pw-plan__day.is-today .pw-plan__dayname {
+  color: rgb(var(--v-theme-primary));
+}
+
+.pw-plan__dayname {
+  font-size: 0.92rem;
+  font-weight: 700;
   text-transform: capitalize;
 }
 
-.pw-matrix__cell {
-  padding: 6px;
-  border: 1px solid var(--pw-line);
-  border-radius: 10px;
-  min-height: 48px;
+.pw-plan__meal {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 8px;
+  padding: 3px 0;
 }
 
-.pw-toggles {
+.pw-plan__meallabel {
+  font-size: 0.82rem;
+  color: var(--fork-ink-soft);
+}
+
+.pw-chips {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 
-.pw-toggle {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1.5px solid var(--c);
+.pw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 0 12px;
+  border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent);
+  border-radius: 999px;
   background: transparent;
   color: var(--c);
   font: inherit;
-  font-weight: 700;
+  font-size: 0.85rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.pw-toggle[aria-pressed="true"] {
+.v-theme--dark .pw-chip {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.pw-chip[aria-pressed="true"] {
+  border-color: var(--c);
   background: var(--c);
   color: #fff;
 }
 
-.pw-toggle:disabled {
-  opacity: 0.3;
+.pw-chip:disabled {
+  border-style: dashed;
+  color: var(--fork-ink-soft);
+  border-color: var(--fork-hairline-strong);
   cursor: not-allowed;
 }
 
-.pw-toggle:focus-visible,
-.pw-dish:focus-visible,
-.pw-pick:focus-visible,
-.pw-empty:focus-visible {
-  outline: 3px solid rgb(var(--v-theme-primary));
-  outline-offset: 2px;
-}
-
 .pw-replace {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.68rem;
-  line-height: 1.2;
+  grid-column: 2;
+  font-size: 0.75rem;
+  line-height: 1.3;
   color: rgb(var(--v-theme-warning));
-  text-align: center;
 }
 
 .pw-note {
   margin-top: 12px;
-  font-size: 0.82rem;
-  color: var(--pw-soft);
+  font-size: 0.85rem;
+  color: var(--fork-ink-soft);
 }
 
 .pw-eat {
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .pw-eat h4 {
-  font-size: 0.9rem;
   margin-bottom: 6px;
 }
 
@@ -917,49 +994,28 @@ onMounted(() => run(async () => {
   align-items: center;
   gap: 8px;
   padding: 6px 0;
-  border-top: 1px solid var(--pw-line);
-  font-size: 0.85rem;
+  border-top: 1px solid var(--fork-hairline);
+  font-size: 0.88rem;
 }
 
-@media (max-width: 1100px) {
-  .pw-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .pw {
-    padding-inline: 12px;
+@media (min-width: 600px) {
+  .pw-plan__day {
+    grid-template-columns: 64px repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    align-items: start;
   }
 
-  .pw-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+  .pw-plan__dayname {
+    padding-top: 22px;
   }
 
-  .pw-weeknav {
-    justify-content: space-between;
+  .pw-plan__meal {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
   }
 
-  .pw-actions > * {
-    flex: 1;
-  }
-
-  .pw-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .pw-slot {
-    min-height: 0;
-  }
-
-  .pw-matrix__row {
-    grid-template-columns: 48px repeat(3, minmax(0, 1fr));
-  }
-
-  .pw-toggle {
-    width: 30px;
-    height: 30px;
+  .pw-replace {
+    grid-column: 1;
   }
 }
 </style>

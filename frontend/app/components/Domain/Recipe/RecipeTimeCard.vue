@@ -1,5 +1,14 @@
 <template v-if="_showCards">
-  <div class="text-center">
+  <!-- Fork: compact one-line variant for the recipe header -->
+  <ul v-if="inline" class="time-inline">
+    <li v-for="item in inlineItems" :key="item.name">
+      <v-icon size="18" color="primary">
+        {{ item.icon }}
+      </v-icon>
+      <span><strong>{{ item.value }}</strong> {{ item.name }}</span>
+    </li>
+  </ul>
+  <div v-else class="text-center">
     <!-- Total Time -->
     <div
       v-if="validateTotalTime"
@@ -85,6 +94,7 @@ interface Props {
   performTime?: string | null;
   color?: string;
   small?: boolean;
+  inline?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), {
   prepTime: null,
@@ -92,7 +102,9 @@ const props = withDefaults(defineProps<Props>(), {
   performTime: null,
   color: "accent custom-transparent",
   small: false,
+  inline: false,
 });
+const { $globals } = useNuxtApp();
 
 const i18n = useI18n();
 
@@ -116,6 +128,12 @@ const validatePerformTime = computed(() => {
   return !isEmpty(props.performTime) ? { name: i18n.t("recipe.perform-time"), value: props.performTime } : null;
 });
 
+const inlineItems = computed(() => [
+  validateTotalTime.value && { ...validateTotalTime.value, icon: $globals.icons.clockOutline },
+  validatePrepTime.value && { ...validatePrepTime.value, icon: $globals.icons.knife },
+  validatePerformTime.value && { ...validatePerformTime.value, icon: $globals.icons.potSteam },
+].filter(Boolean) as { name: string; value: string; icon: string }[]);
+
 const fontSize = computed(() => {
   return props.small ? { fontSize: "smaller" } : { fontSize: "larger" };
 });
@@ -127,6 +145,27 @@ const fontSize = computed(() => {
 }
 .time-card-flex {
   width: fit-content;
+}
+.time-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.time-inline li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.time-inline span {
+  color: var(--fork-ink-soft);
+}
+.time-inline strong {
+  color: rgb(var(--v-theme-on-surface));
+  font-weight: 650;
 }
 .custom-transparent {
   opacity: 0.7;

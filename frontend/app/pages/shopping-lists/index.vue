@@ -69,27 +69,30 @@
       </template>
     </BasePageTitle>
 
-    <v-container class="d-flex align-center justify-end px-0 pt-0 pb-4">
+    <div class="d-flex flex-wrap align-center justify-end ga-2 pb-4">
       <v-checkbox
         v-model="preferences.viewAllLists"
         hide-details
+        density="compact"
         :label="$t('general.show-all')"
-        class="my-0 mr-4"
+        class="flex-grow-0 mr-auto"
       />
       <BaseButton
+        v-if="shoppingListChoices.length"
         create
         class="my-0"
         @click="state.createDialog = true"
       />
-    </v-container>
+    </div>
 
-    <v-container v-if="!shoppingListChoices.length">
-      <BasePageTitle>
-        <template #title>
-          {{ $t('shopping-list.no-shopping-lists-found') }}
-        </template>
-      </BasePageTitle>
-    </v-container>
+    <!-- Fork: one empty state with its action instead of a detached button -->
+    <div v-if="!shoppingListChoices.length" class="fork-empty">
+      <v-icon :icon="$globals.icons.cartCheck" size="32" />
+      <strong>{{ $t('shopping-list.no-shopping-lists-found') }}</strong>
+      <v-btn color="primary" variant="flat" :prepend-icon="$globals.icons.createAlt" @click="state.createDialog = true">
+        {{ $t('shopping-list.create-shopping-list') }}
+      </v-btn>
+    </div>
 
     <section>
       <v-card

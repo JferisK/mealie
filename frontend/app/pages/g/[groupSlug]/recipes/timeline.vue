@@ -1,8 +1,7 @@
 <template>
-  <div>
+  <div class="fork-page">
     <BasePageTitle
       v-if="groupName"
-      class="mt-n4 pt-8"
     >
       <template #header>
         <v-img

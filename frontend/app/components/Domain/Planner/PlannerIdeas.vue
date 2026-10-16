@@ -1,15 +1,8 @@
 <template>
   <div class="pi">
     <div class="pi-toolbar">
-      <div class="pi-weeknav">
-        <v-btn :icon="mdiChevronLeft" variant="text" :aria-label="t('previous')" :disabled="busy" @click="shiftWeek(-7)" />
-        <div class="pi-weeklabel">
-          <strong>{{ t('weekShort') }} {{ weekNumber }}</strong>
-          <span>{{ shortDate(week) }} – {{ shortDate(weekEnd) }}</span>
-        </div>
-        <v-btn :icon="mdiChevronRight" variant="text" :aria-label="t('next')" :disabled="busy" @click="shiftWeek(7)" />
-      </div>
-      <v-btn color="primary" :prepend-icon="mdiLightbulbOnOutline" :disabled="busy || !data" @click="openPicker">
+      <PlannerWeekNav v-model="week" :disabled="busy" />
+      <v-btn color="primary" variant="flat" :prepend-icon="mdiLightbulbOnOutline" :disabled="busy || !data" @click="openPicker">
         {{ t('proposeIdea') }}
       </v-btn>
     </div>
@@ -26,10 +19,13 @@
     </v-alert>
     <v-progress-linear v-if="busy && !data" indeterminate />
 
-    <div v-if="data && !ideas.length" class="pi-empty">
-      <v-icon :icon="mdiLightbulbOutline" size="40" />
-      <h3>{{ t('noIdeas') }}</h3>
+    <div v-if="data && !ideas.length" class="fork-empty">
+      <v-icon :icon="mdiLightbulbOutline" size="32" />
+      <strong>{{ t('noIdeas') }}</strong>
       <p>{{ t('noIdeasHint') }}</p>
+      <v-btn color="primary" variant="tonal" :prepend-icon="mdiLightbulbOnOutline" :disabled="busy" @click="openPicker">
+        {{ t('proposeIdea') }}
+      </v-btn>
     </div>
 
     <ol v-else class="pi-list">
@@ -38,9 +34,20 @@
           <img :src="imageFor(idea.recipe_id)" alt="" loading="lazy" @error="hideImage">
         </NuxtLink>
         <div class="pi-card__body">
-          <NuxtLink :to="recipeLink(idea.slug)" class="pi-card__title">
-            {{ idea.name }}
-          </NuxtLink>
+          <div class="pi-card__head">
+            <NuxtLink :to="recipeLink(idea.slug)" class="pi-card__title">
+              {{ idea.name }}
+            </NuxtLink>
+            <v-btn
+              :icon="mdiClose"
+              size="small"
+              variant="text"
+              class="pi-card__remove"
+              :aria-label="`${t('remove')}: ${idea.name}`"
+              :disabled="busy"
+              @click="remove(idea.id!)"
+            />
+          </div>
           <p class="pi-card__meta">
             <template v-if="facts(idea.recipe_id)">
               {{ number(facts(idea.recipe_id)?.per_serving.calories) }} kcal · {{ number(facts(idea.recipe_id)?.per_serving.protein) }} g {{ t('protein') }}
@@ -66,7 +73,7 @@
               <span>{{ idea.likes?.length || 0 }}</span>
             </button>
             <span class="pi-likers">
-              <span v-for="id in idea.likes" :key="id" class="pi-avatar" :style="{ background: colorFor(id) }" :title="memberName(id)">{{ initial(id) }}</span>
+              <span v-for="id in idea.likes" :key="id" class="fork-person" :style="{ '--c': person(id)?.color }" :title="memberName(id)">{{ person(id)?.label || "?" }}</span>
             </span>
             <v-spacer />
             <span v-if="planned(idea.recipe_id)" class="pi-planned"><v-icon :icon="mdiCheck" size="16" /> {{ t('planned') }}</span>
@@ -81,80 +88,59 @@
             >
               {{ t('toWeekPlan') }}
             </v-btn>
-            <v-btn
-              :icon="mdiClose"
-              size="small"
-              variant="text"
-              :aria-label="t('remove')"
-              :disabled="busy"
-              @click="remove(idea.id!)"
-            />
           </div>
         </div>
       </li>
     </ol>
 
-    <v-dialog v-model="dialog" scrollable max-width="640" :fullscreen="$vuetify.display.xs">
-      <v-card rounded="xl">
-        <v-card-title class="pi-dialog__title">
-          {{ t('proposeIdea') }}
-        </v-card-title>
-        <v-card-text>
-          <v-text-field
-            v-model="search"
-            :prepend-inner-icon="mdiMagnify"
-            :label="t('searchDish')"
-            variant="outlined"
-            density="comfortable"
-            hide-details
-            clearable
-            autofocus
-            class="mb-3"
-          />
-          <v-text-field
-            v-model="note"
-            :label="t('ideaNote')"
-            variant="outlined"
-            density="comfortable"
-            hide-details
-            class="mb-4"
-            maxlength="500"
-          />
-          <v-progress-linear v-if="loadingRecipes" indeterminate class="mb-3" />
-          <div class="pi-picklist">
-            <button
-              v-for="r in filteredRecipes"
-              :key="r.id"
-              type="button"
-              class="pi-pick"
-              :disabled="busy"
-              @click="propose(r.id!)"
-            >
-              <img :src="imageFor(r.id!)" alt="" loading="lazy" @error="hideImage">
-              <span>
-                <strong>{{ r.name }}</strong>
-                <small v-if="facts(r.id!)">{{ number(facts(r.id!)?.per_serving.calories) }} kcal</small>
-                <small v-else>{{ t('noFactsShort') }}</small>
-              </span>
-            </button>
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="dialog = false">
-            {{ t('close') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <PlannerSheet v-model="dialog" fullscreen max-width="640" :title="t('proposeIdea')">
+      <v-text-field
+        v-model="note"
+        :label="t('ideaNote')"
+        variant="outlined"
+        density="comfortable"
+        hide-details
+        class="mb-3"
+        maxlength="500"
+      />
+      <v-text-field
+        v-model="search"
+        :prepend-inner-icon="mdiMagnify"
+        :label="t('searchDish')"
+        variant="outlined"
+        density="comfortable"
+        hide-details
+        clearable
+        class="mb-4"
+      />
+      <v-progress-linear v-if="loadingRecipes" indeterminate class="mb-3" />
+      <div class="pi-picklist">
+        <button
+          v-for="r in filteredRecipes"
+          :key="r.id"
+          type="button"
+          class="pi-pick"
+          :disabled="busy"
+          @click="propose(r.id!)"
+        >
+          <img :src="imageFor(r.id!)" alt="" loading="lazy" @error="hideImage">
+          <span>
+            <strong>{{ r.name }}</strong>
+            <small v-if="facts(r.id!)">{{ number(facts(r.id!)?.per_serving.calories) }} kcal</small>
+            <small v-else>{{ t('noFactsShort') }}</small>
+          </span>
+        </button>
+      </div>
+      <p v-if="!loadingRecipes && !filteredRecipes.length" class="pi-card__meta mt-2">
+        {{ t('noDishMatches') }}
+      </p>
+    </PlannerSheet>
   </div>
 </template>
 
 <script setup lang="ts">
 import {
   mdiCheck,
-  mdiChevronLeft,
-  mdiChevronRight,
   mdiClose,
   mdiLightbulbOnOutline,
   mdiLightbulbOutline,
@@ -162,10 +148,14 @@ import {
   mdiThumbUp,
   mdiThumbUpOutline,
 } from "@mdi/js";
-import { addDays, format, getISOWeek, parseISO, startOfWeek } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 import { useUserApi } from "~/composables/api";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
 import type { IdeaOut, StateOut } from "~/lib/api/types/household-planner";
+import { toPeople, type PlannerMember } from "~/lib/planner/people";
+import { usePlannerPageRefresh } from "~/composables/use-planner-page";
+import PlannerSheet from "~/components/Domain/Planner/PlannerSheet.vue";
+import PlannerWeekNav from "~/components/Domain/Planner/PlannerWeekNav.vue";
 
 const i18n = useI18n();
 const auth = useMealieAuth();
@@ -174,21 +164,16 @@ const t = (key: string) => i18n.t(`household-planner.${key}`);
 const { api, data, members, busy, error, run, refresh } = useHouseholdPlanner();
 const nativeApi = useUserApi();
 
-const palette = ["rgb(var(--v-theme-primary))", "rgb(var(--v-theme-secondary))", "rgb(var(--v-theme-accent))"];
 const initialWeek = typeof route.query.week === "string" ? route.query.week : format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 const week = ref(initialWeek);
-const weekEnd = computed(() => format(addDays(parseISO(week.value), 6), "yyyy-MM-dd"));
-const weekNumber = computed(() => getISOWeek(parseISO(week.value)));
-const shortDate = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { day: "numeric", month: "short" }).format(parseISO(d));
 const number = (v: number | null | undefined) => v == null ? "—" : new Intl.NumberFormat(i18n.locale.value, { maximumFractionDigits: 0 }).format(v);
 const imageFor = (recipeId: string) => `/api/media/recipes/${recipeId}/images/min-original.webp`;
 const recipeLink = (slug: string) => `/g/${auth.user.value?.groupSlug}/r/${slug}`;
 function hideImage(event: Event) { (event.target as HTMLImageElement).style.visibility = "hidden"; }
 
-const memberIndex = (id: string) => members.value.findIndex(m => m.id === id);
-const memberName = (id: string) => members.value.find(m => m.id === id)?.name || "?";
-const initial = (id: string) => memberName(id).trim().charAt(0).toUpperCase();
-const colorFor = (id: string) => palette[Math.max(0, memberIndex(id)) % palette.length];
+const people = computed(() => toPeople(members.value as PlannerMember[]));
+const person = (id: string) => people.value.find(m => m.id === id);
+const memberName = (id: string) => person(id)?.name || "?";
 
 const ideas = computed(() => Object.values(data.value?.state.ideas || {})
   .filter(i => i.week_start === week.value)
@@ -204,10 +189,6 @@ async function write(path: string, payload: unknown, method: "post" | "delete" =
 }
 const toggleLike = (id: string) => run(() => write(`/ideas/${id}/like`, {}));
 const remove = (id: string) => run(() => write(`/ideas/${id}`, {}, "delete"));
-
-function shiftWeek(n: number) {
-  week.value = format(addDays(parseISO(week.value), n), "yyyy-MM-dd");
-}
 
 // ---- Proposing ----------------------------------------------------------
 const dialog = ref(false);
@@ -242,15 +223,15 @@ function propose(recipeId: string) {
   });
 }
 
+usePlannerPageRefresh(() => run(refresh), busy);
 onMounted(() => run(refresh));
 </script>
 
 <style scoped>
 .pi {
-  --pi-line: rgba(var(--v-theme-on-surface), 0.09);
-  --pi-soft: rgba(var(--v-theme-on-surface), 0.62);
+  --pi-line: var(--fork-hairline);
+  --pi-soft: var(--fork-ink-soft);
   max-width: 860px;
-  padding: 8px 16px 32px;
 }
 
 .pi-toolbar {
@@ -259,42 +240,7 @@ onMounted(() => run(refresh));
   gap: 12px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.pi-weeknav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pi-weeklabel {
-  display: flex;
-  flex-direction: column;
-  min-width: 132px;
-  text-align: center;
-  line-height: 1.2;
-}
-
-.pi-weeklabel span {
-  font-size: 0.82rem;
-  color: var(--pi-soft);
-}
-
-.pi-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 48px 16px;
-  border: 1px dashed var(--pi-line);
-  border-radius: 16px;
-  color: var(--pi-soft);
-  text-align: center;
-}
-
-.pi-empty h3 {
-  color: rgb(var(--v-theme-on-surface));
+  margin-bottom: var(--fork-stack);
 }
 
 .pi-list {
@@ -311,7 +257,7 @@ onMounted(() => run(refresh));
   gap: 14px;
   padding: 10px;
   border: 1px solid var(--pi-line);
-  border-radius: 16px;
+  border-radius: var(--fork-radius-card);
   background: rgb(var(--v-theme-surface));
 }
 
@@ -333,7 +279,19 @@ onMounted(() => run(refresh));
   min-width: 0;
 }
 
+.pi-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pi-card__remove {
+  margin: -6px -6px 0 auto;
+  color: var(--fork-ink-soft);
+}
+
 .pi-card__title {
+  overflow-wrap: anywhere;
   font-size: 1.05rem;
   font-weight: 650;
   line-height: 1.3;
@@ -365,7 +323,8 @@ onMounted(() => run(refresh));
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 34px;
+  min-height: 40px;
+  color: inherit;
   padding: 0 12px;
   border: 1px solid var(--pi-line);
   border-radius: 999px;
@@ -392,17 +351,6 @@ onMounted(() => run(refresh));
   gap: 3px;
 }
 
-.pi-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
 .pi-planned {
   display: inline-flex;
   align-items: center;
@@ -410,11 +358,6 @@ onMounted(() => run(refresh));
   font-size: 0.85rem;
   font-weight: 650;
   color: rgb(var(--v-theme-primary));
-}
-
-.pi-dialog__title {
-  padding-top: 18px;
-  font-weight: 700;
 }
 
 .pi-picklist {
@@ -460,17 +403,9 @@ onMounted(() => run(refresh));
 }
 
 @media (max-width: 600px) {
-  .pi {
-    padding-inline: 12px;
-  }
-
   .pi-toolbar {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .pi-weeknav {
-    justify-content: space-between;
   }
 
   .pi-card {

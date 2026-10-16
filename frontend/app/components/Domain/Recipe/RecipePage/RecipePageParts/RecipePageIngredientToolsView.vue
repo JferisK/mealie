@@ -22,7 +22,7 @@
               v-model="recipeTools[index].onHand"
               hide-details
               class="pt-0 py-auto"
-              color="secondary"
+              color="primary"
               density="compact"
               @change="updateTool(index)"
             />

@@ -34,7 +34,7 @@
               :model-value="isChecked(index)"
               hide-details
               class="pt-0 mt-0"
-              color="secondary"
+              color="primary"
               density="comfortable"
               @click.stop
               @update:model-value="setChecked(index, !!$event)"

@@ -15,13 +15,13 @@
               v-if="canEditScale"
               size="small"
               location="top"
-              color="secondary-darken-1"
+              color="primary"
             >
               <template #activator="{ props: tooltipProps }">
                 <v-card
                   class="pa-1 px-2"
                   dark
-                  color="secondary-darken-1"
+                  color="primary"
                   size="small"
                   v-bind="{ ...activatorProps, ...tooltipProps }"
                   :style="{ cursor: canEditScale ? '' : 'default' }"
@@ -43,7 +43,7 @@
               v-else
               class="pa-1 px-2"
               dark
-              color="secondary-darken-1"
+              color="primary"
               size="small"
               v-bind="activatorProps"
               :style="{ cursor: canEditScale ? '' : 'default' }"
@@ -75,7 +75,7 @@
                 />
                 <v-tooltip
                   location="end"
-                  color="secondary-darken-1"
+                  color="primary"
                 >
                   <template #activator="{ props: resetTooltipProps }">
                     <v-btn

@@ -7,13 +7,25 @@
       :title="$t('recipe.add-to-list')"
       :icon="$globals.icons.cartCheck"
     >
-      <v-container v-if="!filteredShoppingLists.length">
-        <BasePageTitle>
-          <template #title>
-            {{ $t('shopping-list.no-shopping-lists-found') }}
-          </template>
-        </BasePageTitle>
-      </v-container>
+      <!-- Fork: no dead end – create the first list right here -->
+      <div v-if="!filteredShoppingLists.length" class="pa-4">
+        <p class="text-medium-emphasis mb-3">
+          {{ $t('shopping-list.no-shopping-lists-found') }}
+        </p>
+        <div class="d-flex ga-2 align-center">
+          <v-text-field
+            v-model.trim="newListName"
+            :label="$t('shopping-list.new-list')"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+            @keydown.enter.stop.prevent="createList"
+          />
+          <v-btn color="primary" variant="flat" :loading="creatingList" :disabled="!newListName" @click="createList">
+            {{ $t('general.create') }}
+          </v-btn>
+        </div>
+      </div>
       <v-card-text>
         <v-card
           v-for="list in filteredShoppingLists"
@@ -151,7 +163,7 @@
                         hide-details
                         :model-value="ingredientData.checked"
                         class="pt-0 my-auto py-auto mr-2"
-                        color="secondary"
+                        color="primary"
                         density="compact"
                       />
                       <div :key="`${ingredientData.ingredient?.quantity || 'no-qty'}-${i}`" class="pa-auto my-auto">
@@ -250,6 +262,24 @@ const state = reactive({
 });
 
 const { shoppingListDialog, shoppingListIngredientDialog, shoppingListShowAllToggled: _shoppingListShowAllToggled } = toRefs(state);
+
+const newListName = ref(i18n.t("shopping-list.shopping-list"));
+const creatingList = ref(false);
+async function createList() {
+  if (!newListName.value || creatingList.value) return;
+  creatingList.value = true;
+  try {
+    const { data } = await api.shopping.lists.createOne({ name: newListName.value });
+    if (data) {
+      const created = data as unknown as ShoppingListSummary;
+      filteredShoppingLists.value = [created];
+      openShoppingListIngredientDialog(created);
+    }
+  }
+  finally {
+    creatingList.value = false;
+  }
+}
 
 const recipeIngredientSections = ref<ShoppingListRecipeIngredientSection[]>([]);
 const selectedShoppingList = ref<ShoppingListSummary | null>(null);
