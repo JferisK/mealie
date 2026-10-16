@@ -17,7 +17,7 @@
         {{ $t('recipe-finder.recipe-finder-description') }}
       </template>
     </BasePageTitle>
-    <v-container v-if="state.ready">
+    <v-container v-if="state.ready" class="px-0">
       <v-row>
         <v-col :cols="useMobile ? 12 : 3">
           <v-container class="ma-0 pa-0">
@@ -58,8 +58,10 @@
                   >
                     <v-btn
                       size="small"
-                      color="accent"
-                      dark
+                      variant="tonal"
+                      rounded="pill"
+                      class="fork-filter-btn"
+                      :color="state.queryFilterJSON.parts?.length ? 'primary' : undefined"
                       @click="state.queryFilterMenu = !state.queryFilterMenu"
                     >
                       <v-icon start>
@@ -101,85 +103,77 @@
                     </v-btn>
                   </v-badge>
                 </div>
-              </v-col>
-            </v-row>
-            <!-- Settings Menu -->
-            <v-row
-              no-gutters
-              class="mb-2"
-            >
-              <v-col
-                cols="12"
-                :class="attrs.settings.colClass"
-              >
-                <v-menu
-                  v-model="state.settingsMenu"
-                  offset-y
-                  nudge-bottom="3"
-                  :close-on-content-click="false"
-                >
-                  <template #activator="{ props }">
-                    <v-btn
-                      size="small"
-                      color="primary"
-                      dark
-                      v-bind="props"
-                    >
-                      <v-icon start>
-                        {{ $globals.icons.cog }}
-                      </v-icon>
-                      {{ $t("general.settings") }}
-                    </v-btn>
-                  </template>
-                  <v-card>
-                    <v-card-text>
-                      <div>
-                        <v-number-input
-                          v-model="maxMissingFoods"
-                          :precision="null"
-                          :min="0"
-                          inset
-                          hide-details
-                          :label="$t('recipe-finder.max-missing-ingredients')"
-                        />
-                        <v-number-input
-                          v-model="maxMissingTools"
-                          :precision="null"
-                          :min="0"
-                          inset
-                          hide-details
-                          :label="$t('recipe-finder.max-missing-tools')"
-                          class="mt-4"
-                        />
-                      </div>
-                      <div class="mt-1">
-                        <v-checkbox
-                          v-if="isOwnGroup"
-                          v-model="state.settings.includeFoodsOnHand"
-                          density="compact"
-                          hide-details
-                          class="my-auto"
-                          :label="$t('recipe-finder.include-ingredients-on-hand')"
-                        />
-                        <v-checkbox
-                          v-if="isOwnGroup"
-                          v-model="state.settings.includeToolsOnHand"
-                          density="compact"
-                          hide-details
-                          class="my-auto"
-                          :label="$t('recipe-finder.include-tools-on-hand')"
-                        />
-                        <v-checkbox
-                          v-model="state.settings.includeSubstitutions"
-                          density="compact"
-                          hide-details
-                          class="my-auto"
-                          :label="$t('recipe-finder.include-substitutions')"
-                        />
-                      </div>
-                    </v-card-text>
-                  </v-card>
-                </v-menu>
+                <div :class="attrs.searchFilter.filterClass">
+                  <v-menu
+                    v-model="state.settingsMenu"
+                    offset-y
+                    nudge-bottom="3"
+                    :close-on-content-click="false"
+                  >
+                    <template #activator="{ props }">
+                      <v-btn
+                        size="small"
+                        variant="tonal"
+                        rounded="pill"
+                        class="fork-filter-btn"
+                        v-bind="props"
+                      >
+                        <v-icon start>
+                          {{ $globals.icons.cog }}
+                        </v-icon>
+                        {{ $t("general.settings") }}
+                      </v-btn>
+                    </template>
+                    <v-card>
+                      <v-card-text>
+                        <div>
+                          <v-number-input
+                            v-model="maxMissingFoods"
+                            :precision="null"
+                            :min="0"
+                            inset
+                            hide-details
+                            :label="$t('recipe-finder.max-missing-ingredients')"
+                          />
+                          <v-number-input
+                            v-model="maxMissingTools"
+                            :precision="null"
+                            :min="0"
+                            inset
+                            hide-details
+                            :label="$t('recipe-finder.max-missing-tools')"
+                            class="mt-4"
+                          />
+                        </div>
+                        <div class="mt-1">
+                          <v-checkbox
+                            v-if="isOwnGroup"
+                            v-model="state.settings.includeFoodsOnHand"
+                            density="compact"
+                            hide-details
+                            class="my-auto"
+                            :label="$t('recipe-finder.include-ingredients-on-hand')"
+                          />
+                          <v-checkbox
+                            v-if="isOwnGroup"
+                            v-model="state.settings.includeToolsOnHand"
+                            density="compact"
+                            hide-details
+                            class="my-auto"
+                            :label="$t('recipe-finder.include-tools-on-hand')"
+                          />
+                          <v-checkbox
+                            v-model="state.settings.includeSubstitutions"
+                            density="compact"
+                            hide-details
+                            class="my-auto"
+                            :label="$t('recipe-finder.include-substitutions')"
+                          />
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-menu>
+                </div>
               </v-col>
             </v-row>
             <v-row
@@ -516,8 +510,8 @@ const attrs = computed(() => {
       },
     },
     searchFilter: {
-      colClass: useMobile.value ? "d-flex flex-wrap justify-end" : "d-flex flex-wrap justify-start",
-      filterClass: useMobile.value ? "ml-4 mb-2" : "mr-4 mb-2",
+      colClass: "d-flex flex-wrap justify-start ga-2 mb-2",
+      filterClass: "",
     },
     settings: {
       colClass: useMobile.value ? "d-flex flex-wrap justify-end" : "d-flex flex-wrap justify-start",

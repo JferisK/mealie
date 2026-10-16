@@ -1,10 +1,11 @@
 <template>
-  <div class="search-container pb-8">
+  <div class="search-container pb-4">
     <form
-      class="search-box pa-2"
+      class="search-box py-2 px-4"
       @submit.prevent="search"
     >
-      <div class="d-flex justify-center mb-2">
+      <!-- Fork: search field with sort and settings beside it; filters below, left-aligned -->
+      <div class="search-field-row">
         <v-text-field
           ref="input"
           v-model="state.search"
@@ -16,9 +17,6 @@
           :prepend-inner-icon="$globals.icons.search"
           @keyup.enter="hideKeyboard"
         />
-      </div>
-      <div class="search-row">
-        <RecipeExplorerPageSearchFilters />
         <!-- Sort Options -->
         <v-menu
           offset-y
@@ -26,9 +24,10 @@
         >
           <template #activator="{ props }">
             <v-btn
-              class="ml-auto"
-              size="small"
-              color="accent"
+              variant="text"
+              :icon="$vuetify.display.xs"
+              :aria-label="sortText"
+              :title="sortText"
               v-bind="props"
             >
               <v-icon :start="!$vuetify.display.xs">
@@ -84,12 +83,13 @@
         >
           <template #activator="{ props }">
             <v-btn
-              size="small"
-              color="accent"
-              dark
+              variant="text"
+              icon
+              :aria-label="$t('general.settings')"
+              :title="$t('general.settings')"
               v-bind="props"
             >
-              <v-icon size="small">
+              <v-icon>
                 {{ $globals.icons.cog }}
               </v-icon>
             </v-btn>
@@ -112,6 +112,9 @@
             </v-card-text>
           </v-card>
         </v-menu>
+      </div>
+      <div class="search-row">
+        <RecipeExplorerPageSearchFilters />
       </div>
       <div
         v-if="!state.auto"
@@ -232,11 +235,18 @@ async function setRandomOrderByWrapper() {
 </script>
 
 <style scoped>
+.search-field-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .search-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  margin-top: 1rem;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .search-container {

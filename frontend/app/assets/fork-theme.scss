@@ -414,3 +414,11 @@ $radius-control: 10px;
     text-align: center;
   }
 }
+
+// Filter buttons (recipe list, recipe finder): one neutral pill style,
+// primary tint only while a filter is active.
+.v-btn.fork-filter-btn {
+  --v-btn-height: 34px;
+  padding-inline: 14px;
+  font-weight: 600;
+}

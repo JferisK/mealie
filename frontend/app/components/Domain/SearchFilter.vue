@@ -17,8 +17,10 @@
         >
           <v-btn
             size="small"
-            color="accent"
-            dark
+            variant="tonal"
+            rounded="pill"
+            class="fork-filter-btn"
+            :color="selectedCount > 0 ? 'primary' : undefined"
             v-bind="menuProps"
           >
             <slot />
