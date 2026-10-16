@@ -1,5 +1,5 @@
 <template>
-  <PlannerPageShell section="week" :title="$t('household-planner.navWeek')" :subtitle="$t('household-planner.plannedOnly')" />
+  <PlannerPageShell section="week" :title="$t('household-planner.weekPlan')" :subtitle="$t('household-planner.plannedOnly')" />
 </template>
 
 <script setup lang="ts">

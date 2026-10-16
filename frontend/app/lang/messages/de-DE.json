@@ -1343,6 +1343,7 @@
     "cookTab": "Kochen",
     "freezerHint": "Eingefrorene Portionen mit Datum und Lagerort. Entnommen wird erst, wenn ihr es bestätigt.",
     "goalsHint": "Dein Kalorienbedarf und deine bestätigten Ziele. Nur in deinem Konto sichtbar.",
+    "weekPlan": "Wochenplan",
     "goalsTab": "Ziele"
   }
 }

@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiPotSteam, mdiScaleBalance, mdiSnowflake, mdiTarget } from "@mdi/js";
+import { mdiPotSteam, mdiSnowflake, mdiTarget } from "@mdi/js";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import type { SideBarLink } from "~/types/application-types";
 import { useGroupSelf } from "~/composables/use-groups";
@@ -239,13 +239,7 @@ const topLinks = computed<SideBarLink[]>(() => [
   },
   {
     icon: $globals.icons.calendarMultiselect,
-    title: i18n.t("meal-plan.meal-planner"),
-    to: "/household/mealplan/planner/view",
-    restricted: true,
-  },
-  {
-    icon: mdiScaleBalance,
-    title: i18n.t("household-planner.navWeek"),
+    title: i18n.t("household-planner.weekPlan"),
     to: "/household/portions",
     restricted: true,
   },

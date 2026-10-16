@@ -7,12 +7,29 @@
       <p v-if="subtitle" class="planner-page__subtitle">
         {{ subtitle }}
       </p>
+      <v-btn-toggle
+        v-if="section === 'week'"
+        :model-value="'week'"
+        mandatory
+        density="comfortable"
+        variant="outlined"
+        divided
+        class="planner-page__views"
+      >
+        <v-btn value="week" :prepend-icon="mdiScaleBalance">
+          {{ $t("household-planner.navWeek") }}
+        </v-btn>
+        <v-btn value="calendar" :prepend-icon="mdiCalendarMonth" to="/household/mealplan/planner/view">
+          {{ $t("household-planner.calendarView") }}
+        </v-btn>
+      </v-btn-toggle>
     </header>
     <PlannerPortions :section="section" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { mdiCalendarMonth, mdiScaleBalance } from "@mdi/js";
 import PlannerPortions from "~/components/Domain/Planner/PlannerPortions.vue";
 
 const props = defineProps<{
@@ -39,6 +56,10 @@ useSeoMeta({ title: () => props.title });
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
+}
+
+.planner-page__views {
+  margin-top: 16px;
 }
 
 .planner-page__subtitle {

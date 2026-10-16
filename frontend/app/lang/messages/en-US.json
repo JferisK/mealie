@@ -1343,6 +1343,7 @@
     "cookTab": "Cook",
     "freezerHint": "Frozen portions with date and location. Stock only drops when you confirm a withdrawal.",
     "goalsHint": "Your energy needs and confirmed targets. Only visible in your account.",
+    "weekPlan": "Week plan",
     "goalsTab": "Goals"
   }
 }
