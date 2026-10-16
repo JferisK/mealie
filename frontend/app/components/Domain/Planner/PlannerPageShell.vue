@@ -33,6 +33,7 @@
 import { mdiCalendarMonth, mdiScaleBalance } from "@mdi/js";
 import PlannerPortions from "~/components/Domain/Planner/PlannerPortions.vue";
 import PlannerWeek from "~/components/Domain/Planner/PlannerWeek.vue";
+import { useAuthBackend } from "~/composables/use-auth-backend";
 
 const props = defineProps<{
   section: "week" | "cook" | "freezer" | "goals";
@@ -41,6 +42,15 @@ const props = defineProps<{
 }>();
 
 useSeoMeta({ title: () => props.title });
+
+// Household planner data is private; send signed-out visitors to the login and back.
+const authBackend = useAuthBackend();
+const route = useRoute();
+watch(() => authBackend.status.value, (status) => {
+  if (status === "unauthenticated") {
+    navigateTo(`/login?redirect=${encodeURIComponent(route.fullPath)}`);
+  }
+}, { immediate: true });
 </script>
 
 <style scoped>
