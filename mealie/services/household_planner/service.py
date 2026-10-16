@@ -115,14 +115,51 @@ class PlannerService:
         return plan_summary(plan, self.state)
 
     def confirm(self, plan: PlanIn, member_ids: set[UUID], group_id: UUID, actor: UUID) -> None:
+        """Assistant entry point (MCP). Identical re-submissions are no-ops; otherwise the week is replaced."""
         existing = self.state.plans.get(str(plan.id))
+        if existing and PlanIn.model_validate({k: getattr(existing, k) for k in PlanIn.model_fields}) == plan:
+            return
+        self.save_week(plan, member_ids, group_id, actor)
+
+    def week_plan(self, start) -> PlanOut | None:
+        return next((p for p in self.state.plans.values() if p.start == start), None)
+
+    def save_week(self, plan: PlanIn, member_ids: set[UUID], group_id: UUID, actor: UUID) -> None:
+        """Create or replace the plan of one week. Plans stay editable; eaten entries are kept."""
+        slots = [(e.user_id, e.day, e.meal) for e in plan.entries]
+        if len(slots) != len(set(slots)):
+            raise ValueError("Pro Person ist je Tag und Mahlzeit nur ein Gericht möglich.")
+        existing = self.week_plan(plan.start)
+        consumed: list[UUID] = []
+        checked: list[str] = []
         if existing:
-            if PlanIn.model_validate({k: getattr(existing, k) for k in PlanIn.model_fields}) == plan:
-                return
-            raise ValueError("Confirmed plans are immutable. Cancel and create a new plan.")
-        if any(p.start == plan.start for p in self.state.plans.values()):
-            raise ValueError("A plan already exists for this week. Cancel it before replacing it.")
+            plan = plan.model_copy(update={"id": existing.id})
+            incoming = {e.id: e for e in plan.entries}
+            for entry in existing.entries:
+                if entry.id in existing.consumed and incoming.get(entry.id) != entry:
+                    raise ValueError("Bereits gegessene oder entnommene Mahlzeiten können nicht geändert werden.")
+            consumed = list(existing.consumed)
+            checked = list(existing.checked_items)
         self.validate_plan(plan, member_ids)
+        if existing:
+            self._remove_native(existing)
+            del self.state.plans[str(existing.id)]
+        if not plan.entries:
+            return
+        snapshots = dict(existing.recipe_snapshots) if existing else {}
+        for e in plan.entries:
+            if not e.batch_id and str(e.recipe_id) in self.state.facts:
+                snapshots[str(e.recipe_id)] = self.state.facts[str(e.recipe_id)].model_copy(deep=True)
+        self.state.plans[str(plan.id)] = PlanOut(
+            **plan.model_dump(),
+            confirmed_at=datetime.now(UTC),
+            native_ids=self._write_native(plan, group_id, actor),
+            consumed=consumed,
+            checked_items=checked,
+            recipe_snapshots=snapshots,
+        )
+
+    def _write_native(self, plan: PlanIn, group_id: UUID, actor: UUID) -> list[int]:
         # Mirror each unique shared dish into the native Mealie planner, in the same transaction.
         native = []
         seen = set()
@@ -145,25 +182,20 @@ class PlannerService:
             self.repository.session.add(row)
             self.repository.session.flush()
             native.append(row.id)
-        self.state.plans[str(plan.id)] = PlanOut(
-            **plan.model_dump(),
-            confirmed_at=datetime.now(UTC),
-            native_ids=native,
-            recipe_snapshots={
-                str(e.recipe_id): self.state.facts[str(e.recipe_id)].model_copy(deep=True)
-                for e in plan.entries
-                if not e.batch_id
-            },
-        )
+        return native
+
+    def _remove_native(self, plan: PlanOut) -> None:
+        for native_id in plan.native_ids:
+            row = self.repository.session.get(GroupMealPlan, native_id)
+            if row and row.text == f"Household planner:{plan.id}":
+                self.repository.session.delete(row)
+        self.repository.session.flush()
 
     def cancel(self, plan_id: UUID) -> None:
         plan = self.state.plans.pop(str(plan_id), None)
         if not plan:
             raise ValueError("Unknown plan")
-        for native_id in plan.native_ids:
-            row = self.repository.session.get(GroupMealPlan, native_id)
-            if row and row.text == f"Household planner:{plan.id}":
-                self.repository.session.delete(row)
+        self._remove_native(plan)
 
     def consume(self, plan_id: UUID, entry_id: UUID, actor: UUID) -> None:
         plan = self.state.plans.get(str(plan_id))

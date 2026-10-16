@@ -24,13 +24,15 @@
         </v-btn>
       </v-btn-toggle>
     </header>
-    <PlannerPortions :section="section" />
+    <PlannerWeek v-if="section === 'week'" />
+    <PlannerPortions v-else :section="section" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { mdiCalendarMonth, mdiScaleBalance } from "@mdi/js";
 import PlannerPortions from "~/components/Domain/Planner/PlannerPortions.vue";
+import PlannerWeek from "~/components/Domain/Planner/PlannerWeek.vue";
 
 const props = defineProps<{
   section: "week" | "cook" | "freezer" | "goals";

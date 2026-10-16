@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
@@ -123,6 +123,20 @@ class HouseholdPlannerController(BaseUserController):
             self._check_plan(s, data)
         try:
             s.confirm(data, self._members(), self.group_id, self.user.id)
+            return self._write(s)
+        except ValueError as exc:
+            self.session.rollback()
+            raise HTTPException(422, str(exc)) from exc
+
+    @router.put("/weeks/{start}", response_model=StateOut)
+    def save_week(self, start: date, data: PlanIn, revision: int = Query(ge=0)):
+        if data.start != start:
+            raise HTTPException(422, "Week start does not match the URL")
+        s = self._service(revision)
+        if data.entries:
+            self._check_plan(s, data)
+        try:
+            s.save_week(data, self._members(), self.group_id, self.user.id)
             return self._write(s)
         except ValueError as exc:
             self.session.rollback()

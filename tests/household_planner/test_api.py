@@ -126,3 +126,13 @@ def test_backup_preserves_nested_planner_contract():
     assert converted["household_planner_documents"][0]["payload"] == payload
     assert converted["household_planner_documents"][0]["created_at"].year == 2026
     exporter.engine.dispose()
+
+
+def test_week_endpoint_validates_start_and_accepts_empty_week(api):
+    client, _ = api
+    assert (
+        client.put(BASE + "/weeks/2026-10-19?revision=0", json={"start": "2026-10-12", "entries": []}).status_code
+        == 422
+    )
+    response = client.put(BASE + "/weeks/2026-10-12?revision=0", json={"start": "2026-10-12", "entries": []})
+    assert response.status_code == 200 and response.json()["state"]["plans"] == {}

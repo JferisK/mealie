@@ -1,7 +1,7 @@
 import Foundation
 import HealthKit
 
-struct Observation: Codable {
+struct HealthObservation: Codable {
     let id: String
     let kind: String
     let value: Double
@@ -39,20 +39,20 @@ final class HealthReader {
         guard HKHealthStore.isHealthDataAvailable() else { throw BridgeError.message("HealthKit is unavailable on this device") }
         try await store.requestAuthorization(toShare: [], read: types)
     }
-    func sampleObservations() async throws -> [Observation] {
+    func sampleObservations() async throws -> [HealthObservation] {
         nextAnchors = [:]
         deletedIDs = []
         let now = Date()
         let since = Calendar.current.date(byAdding: .day, value: -90, to: now)!
         let iso = ISO8601DateFormatter()
-        var result: [Observation] = []
+        var result: [HealthObservation] = []
         for (identifier, kind, unit) in quantities {
             let type = HKQuantityType.quantityType(forIdentifier: identifier)!
             let samples = try await changedSamples(type: type)
             for case let sample as HKQuantitySample in samples {
                 guard sample.startDate >= since else { continue }
                 let value = sample.quantity.doubleValue(for: unit) * (kind == "body_fat_percent" ? 100 : 1)
-                result.append(Observation(id: sample.uuid.uuidString, kind: kind, value: value,
+                result.append(HealthObservation(id: sample.uuid.uuidString, kind: kind, value: value,
                     at: iso.string(from: sample.startDate), source: sample.sourceRevision.source.bundleIdentifier))
             }
         }
@@ -74,7 +74,7 @@ final class HealthReader {
             stats.enumerateStatistics(from: start, to: now) { statistic, _ in
                 if let sum = statistic.sumQuantity() {
                     let time = iso.string(from: statistic.startDate)
-                    result.append(Observation(id: "daily:\(kind):\(time)", kind: kind,
+                    result.append(HealthObservation(id: "daily:\(kind):\(time)", kind: kind,
                         value: sum.doubleValue(for: unit), at: time, source: "HealthKit.reconciled.daily"))
                 }
             }
@@ -82,7 +82,7 @@ final class HealthReader {
         let workouts = try await changedSamples(type: HKObjectType.workoutType())
         for case let workout as HKWorkout in workouts {
             guard workout.startDate >= since else { continue }
-            result.append(Observation(id: workout.uuid.uuidString, kind: "workout_minutes", value: workout.duration / 60,
+            result.append(HealthObservation(id: workout.uuid.uuidString, kind: "workout_minutes", value: workout.duration / 60,
                 at: iso.string(from: workout.startDate), source: workout.sourceRevision.source.bundleIdentifier))
         }
         return result

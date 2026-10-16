@@ -1,6 +1,6 @@
 name: MealieHealth
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: de.jakob-kroemer
   deploymentTarget:
     iOS: '17.0'
 settings:
@@ -11,7 +11,7 @@ settings:
     INFOPLIST_KEY_NSHealthShareUsageDescription: 'Synchronise selected measurements with your own Mealie server for personal nutrition goal reviews.'
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
-    INFOPLIST_KEY_CFBundleDisplayName: 'Mealie Health'
+    INFOPLIST_KEY_CFBundleDisplayName: 'Cookbook Health'
 targets:
   MealieHealth:
     type: application
@@ -24,7 +24,7 @@ targets:
         com.apple.developer.healthkit.background-delivery: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.MealieHealth
+        PRODUCT_BUNDLE_IDENTIFIER: de.jakob-kroemer.cookbook.health
 schemes:
   MealieHealth:
     build:

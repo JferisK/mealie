@@ -127,6 +127,49 @@ def test_cannot_overbook_or_withdraw_reserved_stock(service):
         service.validate_plan(plan, {uuid4()})
 
 
+def test_week_plan_is_editable_and_keeps_eaten_entries(service, session):
+    f = facts()
+    service.facts(f, "Rice", "rice", None)
+    jakob, sanja, group = uuid4(), uuid4(), uuid4()
+    members = {jakob, sanja}
+    tue, thu = MONDAY + timedelta(days=1), MONDAY + timedelta(days=3)
+    entries = [
+        AllocationIn(user_id=person, recipe_id=f.recipe_id, day=day, meal="lunch", servings=1)
+        for day in (tue, thu)
+        for person in (jakob, sanja)
+    ]
+    service.save_week(PlanIn(start=MONDAY, entries=entries), members, group, jakob)
+    plan = service.week_plan(MONDAY)
+    assert plan and len(plan.entries) == 4
+    assert len(session.scalars(select(GroupMealPlan)).all()) == 2
+    service.consume(plan.id, entries[0].id, jakob)
+
+    # A different client-side ID still replaces the same week; Thursday becomes Sanja only.
+    edited = PlanIn(start=MONDAY, entries=[entries[0], entries[1], entries[3]])
+    service.save_week(edited, members, group, jakob)
+    plan = service.week_plan(MONDAY)
+    assert len(service.state.plans) == 1 and len(plan.entries) == 3
+    assert plan.consumed == [entries[0].id]
+    assert len(session.scalars(select(GroupMealPlan)).all()) == 2
+
+    with pytest.raises(ValueError, match="gegessene"):
+        service.save_week(PlanIn(start=MONDAY, entries=[entries[1]]), members, group, jakob)
+    double = AllocationIn(user_id=sanja, recipe_id=f.recipe_id, day=thu, meal="lunch", servings=1)
+    with pytest.raises(ValueError, match="nur ein Gericht"):
+        service.save_week(PlanIn(start=MONDAY, entries=[*edited.entries, double]), members, group, jakob)
+
+
+def test_empty_week_removes_plan_and_calendar_rows(service, session):
+    f = facts()
+    service.facts(f, "Rice", "rice", None)
+    user, group = uuid4(), uuid4()
+    entry = AllocationIn(user_id=user, recipe_id=f.recipe_id, day=MONDAY, meal="dinner", servings=1)
+    service.save_week(PlanIn(start=MONDAY, entries=[entry]), {user}, group, user)
+    service.save_week(PlanIn(start=MONDAY, entries=[]), {user}, group, user)
+    assert service.state.plans == {}
+    assert session.scalars(select(GroupMealPlan)).all() == []
+
+
 def test_frozen_facts_are_snapshot_and_movements_idempotent(service):
     f, batch = prepared(service)
     f.ingredients[0].per_100g.calories = 999
@@ -194,8 +237,12 @@ def test_monthly_formula_daily_weighting_and_no_automatic_activation():
     assert result.goals.calories == 2092 and result.goals.protein == 96
     assert result.inputs["resting_kcal"] == 1780
     assert result.confirmed_at is None and state.active is None
-    state.observations.pop("2")
-    with pytest.raises(ValueError, match="three distinct"):
+    for key in ("1", "2"):
+        state.observations.pop(key)
+    single = monthly_proposal(state, today)
+    assert single.inputs["weight_kg"] == 80 and "1 Messtag" in single.explanation
+    state.observations.clear()
+    with pytest.raises(ValueError, match="aktuelles Gewicht"):
         monthly_proposal(state, today)
 
 

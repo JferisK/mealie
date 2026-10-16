@@ -1,7 +1,7 @@
 <template>
   <v-container class="planner-shell">
     <RecipeDialogAddToShoppingList v-model="shoppingDialog" :recipes="shoppingRecipes" :shopping-lists="shoppingLists" />
-    <div v-if="!['week', 'cook'].includes(tab)" class="d-flex justify-end">
+    <div v-if="tab !== 'cook'" class="d-flex justify-end">
       <v-btn :icon="mdiRefresh" variant="text" :aria-label="t('refresh')" :loading="busy" @click="run(refreshAll)" />
     </div>
     <v-alert
@@ -17,112 +17,12 @@
     </v-alert>
     <v-progress-linear v-if="busy && !data" indeterminate :aria-label="t('loading')" />
     <template v-if="data">
-      <div v-if="['week', 'cook'].includes(tab)" class="week-navigation">
-        <v-btn :icon="mdiChevronLeft" variant="text" :aria-label="t('previous')" :disabled="busy" @click="requestWeekShift(-7)" />
+      <div v-if="tab === 'cook'" class="week-navigation">
+        <v-btn :icon="mdiChevronLeft" variant="text" :aria-label="t('previous')" :disabled="busy" @click="shiftWeek(-7)" />
         <strong>{{ weekLabel }}</strong>
-        <v-btn :icon="mdiChevronRight" variant="text" :aria-label="t('next')" :disabled="busy" @click="requestWeekShift(7)" />
+        <v-btn :icon="mdiChevronRight" variant="text" :aria-label="t('next')" :disabled="busy" @click="shiftWeek(7)" />
         <v-btn :icon="mdiRefresh" variant="text" :aria-label="t('refresh')" :loading="busy" @click="run(refreshAll)" />
       </div>
-      <section v-if="tab === 'week'" :aria-label="t('week')">
-        <div class="person-switch" role="group" :aria-label="t('person')">
-          <button v-for="member in members" :key="member.id" type="button" :aria-pressed="person === member.id" @click="person = member.id">
-            {{ member.name }}
-          </button>
-        </div>
-        <div class="day-strip" role="group" :aria-label="t('chooseDay')">
-          <button
-            v-for="day in days"
-            :key="day"
-            type="button"
-            :aria-pressed="selectedDay === day"
-            :aria-label="`${dayLabel(day)} ${shortDate(day)}`"
-            :class="{ 'is-today': day === today }"
-            @click="selectDay(day)"
-          >
-            <span>{{ dayLabel(day) }}</span><strong>{{ Number(day.slice(8)) }}</strong><i :class="{ filled: entriesFor(day).length }" />
-          </button>
-        </div>
-        <div class="day-actions">
-          <h2>{{ selectedDay === today ? t('today') : dayLabel(selectedDay) }} <span>{{ shortDate(selectedDay) }}</span></h2>
-          <v-btn variant="text" size="small" :aria-expanded="showOverview" @click="showOverview = !showOverview">
-            {{ t('overview') }}
-          </v-btn>
-          <v-menu v-if="currentPlan">
-            <template #activator="{ props }">
-              <v-btn v-bind="props" :icon="mdiDotsHorizontal" variant="text" :aria-label="t('planActions')" />
-            </template><v-list><v-list-item :title="t('cancelPlan')" :disabled="busy" @click="cancelDialog = true" /></v-list>
-          </v-menu>
-        </div>
-        <div v-if="showOverview" class="week-overview">
-          <button v-for="day in days" :key="day" type="button" @click="selectDay(day)">
-            <span>{{ dayLabel(day) }} · {{ shortDate(day) }}</span><strong>{{ number(dayTotal(day)?.nutrients.calories) }} kcal</strong><v-icon :icon="mdiChevronRight" size="20" />
-          </button>
-        </div>
-        <div class="daily-summary">
-          <div><span>{{ t('plannedEnergy') }}</span><strong>{{ number(dayTotal(selectedDay)?.nutrients.calories) }} <small>kcal</small></strong></div>
-          <div><span>{{ t('protein') }}</span><strong>{{ number(dayTotal(selectedDay)?.nutrients.protein) }} <small>g</small></strong></div>
-          <p v-if="dayTotal(selectedDay)">
-            {{ dayTotal(selectedDay)?.known_entries }}/{{ dayTotal(selectedDay)?.entries }} {{ t('complete') }}
-          </p>
-          <p v-else>
-            {{ t('previewForTotals') }}
-          </p>
-        </div>
-        <div class="meal-list">
-          <article v-for="entry in entriesFor(selectedDay)" :key="entry.id" class="meal-card" :class="{ recorded: currentPlan?.consumed?.includes(entry.id!) }">
-            <NuxtLink :to="`/g/${auth.user.value?.groupSlug}/r/${factsFor(entry)?.slug}`" class="meal-main">
-              <img v-if="factsFor(entry)?.image" :src="`/api/media/recipes/${entry.recipe_id}/images/min-original.webp`" alt="" loading="lazy">
-              <div v-else class="meal-placeholder" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" size="30" /></div>
-              <div class="meal-copy">
-                <span class="meal-label">{{ t(entry.meal) }}<span v-if="entry.batch_id"> · ❄ {{ t('freezer') }}</span></span>
-                <h3>{{ factsFor(entry)?.name }}</h3>
-                <p><strong>{{ number(portionCalories(entry)) }} kcal</strong><span> · {{ number(entry.servings) }} {{ t('portions') }}</span></p>
-              </div>
-            </NuxtLink>
-            <div class="meal-footer">
-              <div class="diet-labels">
-                <span v-if="factsFor(entry)?.gluten_free === 'yes'">{{ t('gfShort') }}</span><span v-if="factsFor(entry)?.lactose_free === 'yes'">{{ t('lfShort') }}</span>
-              </div>
-              <v-btn
-                v-if="currentPlan && !currentPlan.consumed?.includes(entry.id!)"
-                variant="tonal"
-                size="small"
-                :prepend-icon="mdiCheck"
-                :disabled="busy"
-                @click="consume(entry.id!)"
-              >
-                {{ t(entry.batch_id ? 'withdraw' : 'eaten') }}
-              </v-btn>
-              <span v-else-if="currentPlan" class="recorded-label"><v-icon :icon="mdiCheck" size="18" /> {{ t('recorded') }}</span>
-              <v-btn v-else variant="text" size="small" :disabled="busy" @click="removeEntry(entry.id!)">
-                {{ t('remove') }}
-              </v-btn>
-            </div>
-          </article>
-        </div>
-        <div v-if="!entriesFor(selectedDay).length" class="empty-state">
-          <v-icon :icon="mdiCalendarWeek" size="36" /><h3>{{ t('emptyDay') }}</h3><p>{{ t('empty') }}</p>
-        </div>
-        <div v-if="!currentPlan" class="draft-actions">
-          <v-btn color="primary" :prepend-icon="mdiPlus" :disabled="busy" @click="newEntry">
-            {{ t('add') }}
-          </v-btn>
-          <v-btn v-if="draft.entries.length" variant="outlined" :disabled="busy" @click="previewDraft">
-            {{ t('preview') }} · {{ draft.entries.length }}
-          </v-btn>
-        </div>
-        <div class="native-shopping-actions">
-          <v-btn variant="tonal" :prepend-icon="mdiCartOutline" :disabled="busy || !currentPlan || !summary?.cooking.length" @click="prepareShopping">
-            {{ t('addFreshToList') }}
-          </v-btn>
-          <v-btn variant="text" to="/shopping-lists">
-            {{ $t('shopping-list.shopping-lists') }}
-          </v-btn>
-        </div>
-        <p class="section-hint">
-          {{ t('plannedOnly') }}
-        </p>
-      </section>
       <section v-if="tab === 'freezer'">
         <div class="stock-summary">
           <div><strong>{{ number(stockTotal) }}</strong><span>{{ t('portionsFrozen') }}</span></div><div><strong>{{ number(stockAvailable) }}</strong><span>{{ t('available') }}</span></div><v-btn :prepend-icon="mdiPlus" color="primary" :disabled="busy" @click="freezeDialog = true">
@@ -190,56 +90,13 @@
         v-if="tab === 'goals' && personal"
         :personal="personal"
         :busy="busy"
+        :week-average="weekAverage"
         @save-profile="p => run(() => privateMutate('/profile', p, 'put'))"
-        @propose="run(() => privateMutate('/goals/propose'))"
-        @confirm="id => run(() => privateMutate(`/goals/${id}/confirm`))"
-        @manual="g => run(() => privateMutate('/goals/manual', g))"
+        @add-weight="addWeight"
+        @adopt="adoptGoal"
+        @manual="adoptManual"
       />
     </template>
-    <v-dialog v-model="entryDialog" scrollable class="planner-dialog" max-width="540">
-      <v-card :title="t('add')" rounded="xl">
-        <v-card-text>
-          <v-alert v-if="!recipes.length" variant="tonal" class="mb-3">
-            {{ t('needFacts') }}
-          </v-alert>
-          <v-select v-model="entryRecipe" :items="recipes" item-title="name" item-value="recipe_id" :label="t('recipe')" />
-          <v-select v-model="entryPerson" :items="members" item-title="name" item-value="id" :label="t('person')" />
-          <v-select v-model="entryDay" :items="days" :label="t('day')" />
-          <v-select v-model="entryMeal" :items="mealOptions" :label="t('meal')" />
-          <v-number-input
-            v-model="entryServings"
-            :precision="2"
-            inputmode="decimal"
-            :min="0.1"
-            :step="0.5"
-            :label="t('portions')"
-          />
-          <v-select v-model="entryBatch" :items="batchOptions" :label="t('source')" clearable />
-        </v-card-text>
-        <v-card-actions>
-          <v-btn @click="entryDialog = false">
-            {{ t('close') }}
-          </v-btn><v-spacer /><v-btn color="primary" :disabled="!entryRecipe || !entryPerson || !entryServings || entryServings <= 0" @click="addEntry">
-            {{ t('add') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-    <v-dialog v-model="previewDialog" scrollable class="planner-dialog" max-width="600">
-      <v-card :title="t('confirmTitle')" rounded="xl">
-        <v-card-text>
-          <p>{{ draft.entries.length }} {{ t('allocations') }}</p>
-          <v-list><v-list-item v-for="entry in draft.entries" :key="entry.id" :title="factsFor(entry)?.name" :subtitle="`${shortDate(entry.day)} · ${t(entry.meal)} · ${personName(entry.user_id)} · ${number(entry.servings)} ${t('portions')}`" /></v-list>
-          <p>{{ t('confirmHint') }}</p>
-        </v-card-text><v-card-actions>
-          <v-btn @click="previewDialog = false">
-            {{ t('close') }}
-          </v-btn><v-spacer /><v-btn color="primary" :loading="busy" @click="confirmDraft">
-            {{ t('confirm') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
     <v-dialog v-model="freezeDialog" scrollable class="planner-dialog" max-width="500">
       <v-card :title="t('freeze')" rounded="xl">
         <v-card-text>
@@ -259,17 +116,6 @@
             {{ t('close') }}
           </v-btn><v-spacer /><v-btn color="primary" :disabled="!freezeRecipe || !freezeServings || freezeServings <= 0 || busy" @click="freeze">
             {{ t('save') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-    <v-dialog v-model="cancelDialog" scrollable class="planner-dialog" max-width="440">
-      <v-card :title="t('cancelPlan')">
-        <v-card-text>{{ t('cancelHint') }}</v-card-text><v-card-actions>
-          <v-btn @click="cancelDialog = false">
-            {{ t('close') }}
-          </v-btn><v-btn color="error" :disabled="busy" @click="cancelPlan">
-            {{ t('cancelPlan') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -299,37 +145,26 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog :model-value="pendingWeekShift !== null" class="planner-dialog" max-width="460" @update:model-value="value => { if (!value) pendingWeekShift = null; }">
-      <v-card :title="t('unsavedDraft')">
-        <v-card-text>{{ t('discardDraftHint') }}</v-card-text><v-card-actions>
-          <v-btn @click="pendingWeekShift = null">
-            {{ t('keepEditing') }}
-          </v-btn><v-btn color="error" @click="shiftWeek(pendingWeekShift!)">
-            {{ t('discardDraft') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { mdiCalendarWeek, mdiSnowflake, mdiPotSteamOutline, mdiCartOutline, mdiRefresh, mdiChevronLeft, mdiChevronRight, mdiDotsHorizontal, mdiPlus, mdiCheck } from "@mdi/js";
+import { mdiSnowflake, mdiCartOutline, mdiRefresh, mdiChevronLeft, mdiChevronRight, mdiPlus } from "@mdi/js";
 import RecipeDialogAddToShoppingList, { type RecipeWithScale } from "~/components/Domain/Recipe/RecipeDialogAddToShoppingList.vue";
 import { useAddToShoppingListDialog } from "~/composables/shopping-list-page/use-add-to-shopping-list-dialog";
 import { useUserApi } from "~/composables/api";
 import { addDays, format, startOfWeek, parseISO } from "date-fns";
-import type { AllocationIn, PlanIn, BatchIn } from "~/lib/api/types/household-planner";
+import type { BatchIn, GoalsIn, ProfileIn } from "~/lib/api/types/household-planner";
 import { useHouseholdPlanner, type PlannerSummary } from "~/composables/use-household-planner";
 import PlannerPersonalPanel from "~/components/Domain/Planner/PlannerPersonalPanel.vue";
 
 const i18n = useI18n();
 const auth = useMealieAuth();
 const t = (key: string) => i18n.t(`household-planner.${key}`);
-const { api, data, personal, members, busy, error, run, refresh, mutate, privateMutate } = useHouseholdPlanner();
+const { api, data, personal, busy, error, run, refresh, mutate, privateMutate } = useHouseholdPlanner();
 const route = useRoute();
 const pageProps = defineProps<{ section?: "week" | "cook" | "freezer" | "goals" }>();
-const tab = computed(() => pageProps.section ?? (["freezer", "cook", "goals"].includes(String(route.query.section)) ? String(route.query.section) : "week"));
+const tab = computed(() => pageProps.section ?? (["freezer", "goals"].includes(String(route.query.section)) ? String(route.query.section) : "cook"));
 const nativeApi = useUserApi();
 const { shoppingLists, open: shoppingDialog, getShoppingLists } = useAddToShoppingListDialog();
 const shoppingRecipes = ref<RecipeWithScale[]>([]);
@@ -353,76 +188,83 @@ function prepareShopping() {
     shoppingDialog.value = true;
   });
 }
-const today = format(new Date(), "yyyy-MM-dd");
-const selectedDay = ref(today);
-const showOverview = ref(false);
 const stockSearch = ref("");
 const showEmpty = ref(false);
 const withdrawBatch = ref<string | null>(null);
 const withdrawQuantity = ref(1);
-const pendingWeekShift = ref<number | null>(null);
-const person = ref("");
 const week = ref(format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd"));
 const days = computed(() => Array.from({ length: 7 }, (_, i) => format(addDays(parseISO(week.value), i), "yyyy-MM-dd")));
 const shortDate = (day: string) => new Intl.DateTimeFormat(i18n.locale.value, { day: "numeric", month: "short" }).format(parseISO(day));
 const weekLabel = computed(() => `${shortDate(week.value)} – ${shortDate(days.value[6]!)}`);
 const currentPlan = computed(() => Object.values(data.value?.state.plans || {}).find(p => p.start === week.value));
-const draft = reactive<PlanIn & { entries: AllocationIn[] }>({ start: week.value, entries: [] });
 const summary = ref<PlannerSummary | null>(null);
-const allEntries = computed(() => currentPlan.value?.entries || draft.entries);
 const recipes = computed(() => Object.values(data.value?.state.facts || {}));
 const batches = computed(() => Object.values(data.value?.state.batches || {}).sort((a, b) => a.frozen_on.localeCompare(b.frozen_on)));
 const filteredBatches = computed(() => batches.value.filter(b => (showEmpty.value || b.remaining > 0) && `${b.facts.name} ${b.location}`.toLocaleLowerCase().includes((stockSearch.value || "").toLocaleLowerCase())));
 const stockTotal = computed(() => batches.value.reduce((s, b) => s + b.remaining, 0));
 const stockAvailable = computed(() => batches.value.reduce((s, b) => s + available(b.id!), 0));
 const selectedBatch = computed(() => batches.value.find(b => b.id === withdrawBatch.value));
-const entryDialog = ref(false); const previewDialog = ref(false); const freezeDialog = ref(false); const cancelDialog = ref(false);
-const entryRecipe = ref(""); const entryPerson = ref(""); const entryDay = ref(week.value); const entryMeal = ref<AllocationIn["meal"]>("dinner"); const entryServings = ref(1); const entryBatch = ref<string | null>(null);
+const freezeDialog = ref(false);
 const freezeRecipe = ref(""); const freezeServings = ref(1); const freezeLocation = ref(""); const freezeDate = ref(format(new Date(), "yyyy-MM-dd"));
-const mealOptions = computed(() => ["breakfast", "lunch", "dinner", "snack"].map(value => ({ title: t(value), value })));
-const batchOptions = computed(() => batches.value.filter(b => b.recipe_id === entryRecipe.value && available(b.id!) > 0).map(b => ({ title: `${b.frozen_on} · ${b.location} · ${available(b.id!)} ${t("portions")}`, value: b.id })));
 const number = (v: number | null | undefined) => v == null ? "—" : new Intl.NumberFormat(i18n.locale.value, { maximumFractionDigits: 1 }).format(v);
-const personName = (id: string) => members.value.find(m => m.id === id)?.name || "";
-const dayLabel = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { weekday: "short" }).format(parseISO(d));
-const mealOrder = ["breakfast", "lunch", "dinner", "snack"];
-const entriesFor = (day: string) => allEntries.value.filter(e => e.day === day && (!person.value || e.user_id === person.value)).sort((a, b) => mealOrder.indexOf(a.meal) - mealOrder.indexOf(b.meal));
-const dayTotal = (day: string) => summary.value?.days.find(d => d.day === day && d.user_id === person.value);
-const factsFor = (e: AllocationIn) => e.batch_id ? data.value?.state.batches?.[e.batch_id]?.facts : currentPlan.value?.recipe_snapshots?.[e.recipe_id] || data.value?.state.facts?.[e.recipe_id];
-function portionCalories(entry: AllocationIn) { const calories = factsFor(entry)?.per_serving.calories; return calories == null ? null : calories * entry.servings; }
 function available(id: string) {
   const reserved = Object.values(data.value?.state.plans || {}).flatMap(p => (p.entries || []).filter(e => e.batch_id === id && !p.consumed?.includes(e.id!))).reduce((s, e) => s + e.servings, 0);
   return (data.value?.state.batches?.[id]?.remaining || 0) - reserved;
 }
 async function loadSummary() { summary.value = currentPlan.value?.id ? await api.read<PlannerSummary>(`/plans/${currentPlan.value.id}/summary`) : null; }
 function shiftWeek(n: number) {
-  const offset = days.value.indexOf(selectedDay.value);
   week.value = format(addDays(parseISO(week.value), n), "yyyy-MM-dd");
-  selectedDay.value = days.value[Math.max(0, offset)]!;
-  draft.start = week.value; draft.entries = []; draft.id = undefined; summary.value = null;
-  pendingWeekShift.value = null;
+  summary.value = null;
   run(loadSummary);
 }
-function requestWeekShift(n: number) {
-  if (draft.entries.length && !currentPlan.value) pendingWeekShift.value = n;
-  else shiftWeek(n);
-}
-function selectDay(day: string) { selectedDay.value = day; showOverview.value = false; }
-function removeEntry(id: string) { draft.entries = draft.entries.filter(e => e.id !== id); summary.value = null; }
 async function refreshAll() { await refresh(); await loadSummary(); }
-function newEntry() { entryPerson.value = person.value || members.value[0]?.id || ""; entryDay.value = selectedDay.value; entryBatch.value = null; entryDialog.value = true; }
-function addEntry() { draft.entries.push({ id: crypto.randomUUID(), recipe_id: entryRecipe.value, user_id: entryPerson.value, day: entryDay.value, meal: entryMeal.value, servings: entryServings.value, batch_id: entryBatch.value }); entryDialog.value = false; summary.value = null; }
-function previewDraft() { run(async () => { draft.id ||= crypto.randomUUID(); const r = await api.write<{ summary: PlannerSummary }>("/preview", draft, data.value!.revision); summary.value = r.summary; previewDialog.value = true; }); }
-function confirmDraft() { run(async () => { await mutate("/confirm", draft); previewDialog.value = false; draft.entries = []; await loadSummary(); }); }
-function consume(id: string) { run(async () => { await mutate(`/plans/${currentPlan.value!.id}/consume/${id}`, {}); await loadSummary(); }); }
-function cancelPlan() { run(async () => { await mutate(`/plans/${currentPlan.value!.id}`, {}, "delete"); cancelDialog.value = false; summary.value = null; }); }
 function askWithdraw(id: string) { withdrawQuantity.value = Math.min(1, available(id)); withdrawBatch.value = id; }
 function withdraw() {
   if (!withdrawBatch.value || !withdrawQuantity.value) return;
   run(async () => { await mutate("/movements", { id: crypto.randomUUID(), batch_id: withdrawBatch.value, kind: "withdraw", servings: withdrawQuantity.value }); withdrawBatch.value = null; });
 }
 function freeze() { const payload: BatchIn = { id: crypto.randomUUID(), recipe_id: freezeRecipe.value, servings: freezeServings.value, frozen_on: freezeDate.value, location: freezeLocation.value }; run(async () => { await mutate("/batches", payload); freezeDialog.value = false; }); }
-watch(entryRecipe, () => { entryBatch.value = null; });
-onMounted(() => run(async () => { await refresh(); person.value = members.value.find(m => m.id === auth.user.value?.id)?.id || members.value[0]?.id || ""; await loadSummary(); }));
+// Average planned intake of the signed-in person over days that have meals this week.
+const weekAverage = computed(() => {
+  const self = auth.user.value?.id;
+  const perDay = new Map<string, { calories: number; protein: number }>();
+  for (const e of currentPlan.value?.entries || []) {
+    if (e.user_id !== self) continue;
+    const facts = e.batch_id ? data.value?.state.batches?.[e.batch_id]?.facts : currentPlan.value?.recipe_snapshots?.[e.recipe_id] || data.value?.state.facts?.[e.recipe_id];
+    const day = perDay.get(e.day) || { calories: 0, protein: 0 };
+    day.calories += (facts?.per_serving.calories || 0) * e.servings;
+    day.protein += (facts?.per_serving.protein || 0) * e.servings;
+    perDay.set(e.day, day);
+  }
+  if (!perDay.size) return null;
+  const all = [...perDay.values()];
+  return { calories: all.reduce((s, d) => s + d.calories, 0) / all.length, protein: all.reduce((s, d) => s + d.protein, 0) / all.length };
+});
+function addWeight(kg: number) {
+  const now = new Date();
+  run(() => privateMutate("/health", {
+    observations: [{ id: `manual:${format(now, "yyyy-MM-dd")}`, kind: "weight_kg", value: kg, at: now.toISOString(), source: "manual" }],
+    deleted_ids: [],
+  }));
+}
+async function confirmLatest() {
+  const latest = personal.value?.state.revisions?.at(-1);
+  if (latest?.id) await privateMutate(`/goals/${latest.id}/confirm`);
+}
+function adoptGoal(profile: ProfileIn) {
+  run(async () => {
+    await privateMutate("/profile", profile, "put");
+    await privateMutate("/goals/propose");
+    await confirmLatest();
+  });
+}
+function adoptManual(goals: GoalsIn) {
+  run(async () => {
+    await privateMutate("/goals/manual", goals);
+    await confirmLatest();
+  });
+}
+onMounted(() => run(refreshAll));
 </script>
 
 <style scoped>

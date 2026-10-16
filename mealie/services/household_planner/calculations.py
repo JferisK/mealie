@@ -103,19 +103,21 @@ def monthly_proposal(state: PersonalState, today: date | None = None) -> GoalRev
     today = today or datetime.now(UTC).date()
     p = state.profile
     if not p.birth_date or not p.height_cm or not p.equation_sex or not p.protein_reference_kg:
-        raise ValueError("Set birth date, height, equation sex and an agreed protein reference weight first.")
+        raise ValueError("Bitte Geburtsdatum, Größe, Formel-Geschlecht und Protein-Referenzgewicht eintragen.")
     age = today.year - p.birth_date.year - ((today.month, today.day) < (p.birth_date.month, p.birth_date.day))
     if age < 18:
-        raise ValueError("These equations are only offered for adults.")
+        raise ValueError("Die Formeln gelten nur für Erwachsene.")
     # One daily mean avoids overweighting days with multiple scale readings.
     weights: dict[date, list[float]] = {}
     for o in state.observations.values():
         if o.kind == "weight_kg" and today - timedelta(days=27) <= o.at.date() <= today:
             weights.setdefault(o.at.date(), []).append(o.value)
     recent = [mean(v) for d, v in weights.items() if d >= today - timedelta(days=6)]
-    if len(recent) < 3:
-        raise ValueError("At least three distinct weight measurement days within the last seven days are needed.")
-    weight = mean(recent)
+    fallback = sorted((d, mean(v)) for d, v in weights.items() if d >= today - timedelta(days=13))
+    if not recent and not fallback:
+        raise ValueError("Bitte ein aktuelles Gewicht eintragen (Messung aus den letzten 14 Tagen).")
+    weight = mean(recent) if recent else fallback[-1][1]
+    days_used = len(recent) if recent else 1
     # Mifflin et al. 1990, PMID 2305711. Harris-Benedict original comparison, not an averaged prescription.
     msj = 10 * weight + 6.25 * p.height_cm - 5 * age + (5 if p.equation_sex == "male" else -161)
     hb = (
@@ -126,18 +128,19 @@ def monthly_proposal(state: PersonalState, today: date | None = None) -> GoalRev
     energy = msj * p.activity_factor - p.deficit_kcal
     old = [mean(v) for d, v in weights.items() if d <= today - timedelta(days=21)]
     trend = (
-        f" Weight mean changed {weight - mean(old):+.1f} kg between the first and last seven-day windows."
+        f" Gewichtsmittel {weight - mean(old):+.1f} kg gegenüber vor drei Wochen."
         if len(old) >= 3
-        else " Four-week comparison has insufficient data."
+        else " Für einen Vier-Wochen-Vergleich fehlen noch Messwerte."
     )
+    if days_used < 3:
+        trend += f" Berechnet aus {days_used} Messtag(en); mit mehr Messungen wird der Wert stabiler."
     return GoalRevision(
         created_at=datetime.now(UTC),
         goals=GoalsIn(calories=round(energy), protein=round(p.protein_reference_kg * p.protein_g_per_kg)),
         explanation=(
-            "Mifflin–St Jeor resting estimate × explicitly selected activity factor − agreed deficit. "
-            "Exercise calories are not added again. Formula estimates are not measured expenditure. "
-            "Protein uses the explicitly agreed reference weight and factor; "
-            "these are not inferred from total body weight."
+            "Grundumsatz nach Mifflin-St Jeor × gewählter Aktivitätsfaktor − vereinbartes Defizit. "
+            "Trainingskalorien werden nicht zusätzlich addiert; die Formel ist eine Schätzung, keine Messung. "
+            "Protein = Referenzgewicht × gewählter Faktor."
         )
         + trend,
         inputs={

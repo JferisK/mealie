@@ -142,8 +142,10 @@ async def set_recipe_facts(
 async def preview_week(plan: dict) -> dict:
     """
     Validate a draft. plan: stable UUID id, Monday start YYYY-MM-DD, entries
-    [{id,user_id,recipe_id,day,meal,servings,batch_id?,note?}]. Does not persist or reserve. Show the result
-    and obtain user approval.
+    [{id,user_id,recipe_id,day,meal,servings,batch_id?,note?}]. meal is breakfast, lunch or dinner; one dish
+    per person per day and meal; servings is normally 1. Include the week's existing entries you want to keep
+    (read planner_state first): saving replaces the whole week. Does not persist. Show the result and obtain
+    user approval.
     """
     return await request("POST", "/api/households/planning/preview", plan)
 
@@ -151,12 +153,13 @@ async def preview_week(plan: dict) -> dict:
 @mcp.tool()
 async def confirm_week(plan: dict, revision: int, user_confirmed: bool = False) -> dict:
     """
-    Persist exactly the previewed week ONLY after explicit user confirmation. Reuse UUIDs. Reserves frozen
-    portions without withdrawing them.
+    Save exactly the previewed week ONLY after explicit user confirmation. Replaces that week's plan (eaten
+    entries must stay unchanged). Reuse UUIDs. Reserves frozen portions without withdrawing them.
     """
     if not user_confirmed:
         raise ValueError("User confirmation required")
-    return await request("POST", f"/api/households/planning/confirm?revision={revision}", plan)
+    start = path_part(str(plan.get("start", "")))
+    return await request("PUT", f"/api/households/planning/weeks/{start}?revision={revision}", plan)
 
 
 @mcp.tool()
