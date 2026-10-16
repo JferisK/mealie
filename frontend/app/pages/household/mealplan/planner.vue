@@ -1,7 +1,14 @@
 <template>
   <v-container>
     <!-- Fork: switch between portion week and native calendar -->
-    <v-btn-toggle :model-value="'calendar'" mandatory density="comfortable" variant="outlined" divided class="mb-4">
+    <v-btn-toggle
+      :model-value="'calendar'"
+      mandatory
+      density="comfortable"
+      variant="outlined"
+      divided
+      class="mb-4"
+    >
       <v-btn value="week" :prepend-icon="mdiScaleBalance" to="/household/portions">
         {{ $t('household-planner.navWeek') }}
       </v-btn>
