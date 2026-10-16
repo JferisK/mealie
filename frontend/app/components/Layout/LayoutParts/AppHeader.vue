@@ -3,17 +3,17 @@
     clipped-left
     density="compact"
     app
-    color="primary"
-    dark
-    class="d-print-none"
+    color="surface"
+    flat
+    class="d-print-none fork-app-bar"
   >
     <slot />
     <RouterLink :to="routerLink">
       <v-btn
         icon
-        color="white"
+        color="primary"
       >
-        <v-icon size="40"> {{ $globals.icons.primary }} </v-icon>
+        <v-icon size="34"> {{ $globals.icons.primary }} </v-icon>
       </v-btn>
     </RouterLink>
 
@@ -25,7 +25,7 @@
         style="cursor: pointer"
         @click="$router.push(routerLink)"
       >
-        Mealie
+        Cookbook
       </v-toolbar-title>
     </div>
     <RecipeDialogSearch ref="domSearchDialog" />
@@ -47,7 +47,7 @@
           density="compact"
           flat
           :prepend-inner-icon="$globals.icons.search"
-          bg-color="primary-darken-1"
+          bg-color="background"
           :placeholder="$t('search.search-hint')"
         />
       </v-responsive>

@@ -2,19 +2,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Theme(BaseSettings):
-    light_primary: str = "#E58325"
-    light_accent: str = "#007A99"
-    light_secondary: str = "#973542"
-    light_success: str = "#43A047"
-    light_info: str = "#1976D2"
-    light_warning: str = "#FF6D00"
-    light_error: str = "#EF5350"
+    light_primary: str = "#2F6B4F"
+    light_accent: str = "#3F5E96"
+    light_secondary: str = "#C98A1B"
+    light_success: str = "#3C8D5A"
+    light_info: str = "#3F5E96"
+    light_warning: str = "#D9822B"
+    light_error: str = "#C2413A"
 
-    dark_primary: str = "#E58325"
-    dark_accent: str = "#007A99"
-    dark_secondary: str = "#973542"
-    dark_success: str = "#43A047"
-    dark_info: str = "#1976D2"
-    dark_warning: str = "#FF6D00"
-    dark_error: str = "#EF5350"
+    dark_primary: str = "#7FBF9E"
+    dark_accent: str = "#9DB4E0"
+    dark_secondary: str = "#E8B44F"
+    dark_success: str = "#6DBB8A"
+    dark_info: str = "#9DB4E0"
+    dark_warning: str = "#EFA35B"
+    dark_error: str = "#E5776F"
     model_config = SettingsConfigDict(env_prefix="theme_", extra="allow")

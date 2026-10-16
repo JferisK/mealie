@@ -1341,6 +1341,7 @@
     "shoppingYieldMissing": "Set the number of servings in the recipe before adding ingredients.",
     "stockTab": "Freezer",
     "cookTab": "Cook",
+    "nutritionNav": "Nutrition",
     "goalsTab": "Goals"
   }
 }

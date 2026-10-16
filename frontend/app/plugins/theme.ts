@@ -37,6 +37,15 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       theme = await fetchTheme();
       __cachedTheme = theme;
     }
+    // Fork reskin: flatter, rounder components; colours come from the theme below.
+    vuetifyOptions.defaults = {
+      ...vuetifyOptions.defaults,
+      VCard: { rounded: "lg" },
+      VBtn: { rounded: "lg" },
+      VChip: { rounded: "pill" },
+      VAlert: { rounded: "lg" },
+      VDialog: { VCard: { rounded: "xl" } },
+    };
     vuetifyOptions.theme = {
       defaultTheme: nuxtApp.$config.public.useDark ? "dark" : "light",
       variations: {
@@ -48,27 +57,29 @@ export default defineNuxtPlugin(async (nuxtApp) => {
         light: {
           dark: false,
           colors: {
-            primary: theme?.lightPrimary ?? "#E58325",
-            accent: theme?.lightAccent ?? "#007A99",
-            secondary: theme?.lightSecondary ?? "#973542",
-            success: theme?.lightSuccess ?? "#43A047",
-            info: theme?.lightInfo ?? "#1976d2",
-            warning: theme?.lightWarning ?? "#FF6D00",
-            error: theme?.lightError ?? "#EF5350",
+            primary: theme?.lightPrimary ?? "#2F6B4F",
+            accent: theme?.lightAccent ?? "#3F5E96",
+            secondary: theme?.lightSecondary ?? "#C98A1B",
+            success: theme?.lightSuccess ?? "#3C8D5A",
+            info: theme?.lightInfo ?? "#3F5E96",
+            warning: theme?.lightWarning ?? "#D9822B",
+            error: theme?.lightError ?? "#C2413A",
+            background: "#F4F6F5",
+            surface: "#FFFFFF",
           },
         },
         dark: {
           dark: true,
           colors: {
-            primary: theme?.darkPrimary ?? "#E58325",
-            accent: theme?.darkAccent ?? "#007A99",
-            secondary: theme?.darkSecondary ?? "#973542",
-            success: theme?.darkSuccess ?? "#43A047",
-            info: theme?.darkInfo ?? "#1976d2",
-            warning: theme?.darkWarning ?? "#FF6D00",
-            error: theme?.darkError ?? "#EF5350",
-            background: "#1E1E1E",
-            surface: "#1E1E1E",
+            primary: theme?.darkPrimary ?? "#7FBF9E",
+            accent: theme?.darkAccent ?? "#9DB4E0",
+            secondary: theme?.darkSecondary ?? "#E8B44F",
+            success: theme?.darkSuccess ?? "#6DBB8A",
+            info: theme?.darkInfo ?? "#9DB4E0",
+            warning: theme?.darkWarning ?? "#EFA35B",
+            error: theme?.darkError ?? "#E5776F",
+            background: "#141917",
+            surface: "#1B211E",
           },
         },
       },

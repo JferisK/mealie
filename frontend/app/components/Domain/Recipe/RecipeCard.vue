@@ -7,9 +7,10 @@
     >
       <v-card
         v-bind="hoverProps"
+        class="fork-recipe-card"
         :class="{ 'on-hover': isHovering }"
         :style="{ cursor }"
-        :elevation="isHovering ? 12 : 2"
+        :elevation="0"
         :to="recipeRoute"
         :min-height="imageHeight + 75"
         @click.self="$emit('click')"
@@ -25,7 +26,7 @@
           <v-expand-transition v-if="description">
             <div
               v-if="isHovering"
-              class="d-flex transition-fast-in-fast-out bg-secondary v-card--reveal"
+              class="d-flex transition-fast-in-fast-out v-card--reveal fork-card-reveal"
               style="height: 100%"
             >
               <v-card-text class="v-card--text-show white--text">
@@ -36,7 +37,7 @@
             </div>
           </v-expand-transition>
         </RecipeCardImage>
-        <v-card-title class="px-4" style="font-size: 1.25rem;">
+        <v-card-title class="px-4 fork-recipe-card__title">
           {{ name }}
         </v-card-title>
 

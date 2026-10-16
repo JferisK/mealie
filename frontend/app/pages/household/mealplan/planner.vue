@@ -1,136 +1,113 @@
 <template>
   <v-container>
-    <h1 class="text-h5 mb-3">
-      {{ $t('meal-plan.meal-planner') }}
-    </h1>
-    <v-tabs v-model="viewTab" color="primary" class="mb-2 mealplan-tabs">
-      <v-tab value="calendar">
-        {{ $t('household-planner.calendarView') }}
-      </v-tab>
-      <v-tab value="week">
-        {{ $t('household-planner.navWeek') }}
-      </v-tab>
-      <v-tab value="freezer">
-        {{ $t('household-planner.stockTab') }}
-      </v-tab>
-      <v-tab value="cook">
-        {{ $t('household-planner.cookTab') }}
-      </v-tab>
-      <v-tab value="goals">
-        {{ $t('household-planner.goalsTab') }}
-      </v-tab>
-    </v-tabs>
-    <NuxtPage v-if="isPortions" />
-    <template v-else>
-      <RecipeDialogAddToShoppingList
-        v-if="shoppingLists"
-        v-model="shoppingListDialog"
-        :recipes="weekRecipesWithScales"
-        :shopping-lists="shoppingLists"
-      />
-      <div :class="`d-flex ga-2 ${$vuetify.display.xs ? 'justify-center' : 'justify-start'}`">
-        <v-btn :icon="$globals.icons.chevronLeft" flat rounded="md" density="comfortable" @click="() => changeWeek(-1)" />
-        <v-menu
-          v-model="state.picker"
-          :close-on-content-click="false"
-          transition="scale-transition"
-          offset-y
-          min-width="auto"
-        >
-          <template #activator="{ props }">
-            <v-btn
-              color="primary"
-              class="mb-2"
-              v-bind="props"
-            >
-              <v-icon start>
-                {{ $globals.icons.calendar }}
-              </v-icon>
-              {{ $d(weekRange.start, "short") }} - {{ $d(weekRange.end, "short") }}
-            </v-btn>
-          </template>
+    <RecipeDialogAddToShoppingList
+      v-if="shoppingLists"
+      v-model="shoppingListDialog"
+      :recipes="weekRecipesWithScales"
+      :shopping-lists="shoppingLists"
+    />
+    <div :class="`d-flex ga-2 ${$vuetify.display.xs ? 'justify-center' : 'justify-start'}`">
+      <v-btn :icon="$globals.icons.chevronLeft" flat rounded="md" density="comfortable" @click="() => changeWeek(-1)" />
+      <v-menu
+        v-model="state.picker"
+        :close-on-content-click="false"
+        transition="scale-transition"
+        offset-y
+        min-width="auto"
+      >
+        <template #activator="{ props }">
+          <v-btn
+            color="primary"
+            class="mb-2"
+            v-bind="props"
+          >
+            <v-icon start>
+              {{ $globals.icons.calendar }}
+            </v-icon>
+            {{ $d(weekRange.start, "short") }} - {{ $d(weekRange.end, "short") }}
+          </v-btn>
+        </template>
 
-          <v-card>
-            <MealPlanDatePicker
-              v-model="state.range"
-              hide-header
-              :multiple="'range'"
-              :first-day-of-week="firstDayOfWeek"
-              :local="$i18n.locale"
+        <v-card>
+          <MealPlanDatePicker
+            v-model="state.range"
+            hide-header
+            :multiple="'range'"
+            :first-day-of-week="firstDayOfWeek"
+            :local="$i18n.locale"
+          />
+
+          <v-card-text>
+            <v-number-input
+              v-model="numberOfDaysPast"
+              :min="0"
+              inset
+              :label="$t('meal-plan.numberOfDaysPast-label')"
+              :hint="$t('meal-plan.numberOfDaysPast-hint')"
+              persistent-hint
             />
+          </v-card-text>
 
-            <v-card-text>
-              <v-number-input
-                v-model="numberOfDaysPast"
-                :min="0"
-                inset
-                :label="$t('meal-plan.numberOfDaysPast-label')"
-                :hint="$t('meal-plan.numberOfDaysPast-hint')"
-                persistent-hint
-              />
-            </v-card-text>
+          <v-card-text>
+            <v-number-input
+              v-model="numberOfDays"
+              :min="1"
+              inset
+              :label="$t('meal-plan.numberOfDays-label')"
+              :hint="$t('meal-plan.numberOfDays-hint')"
+              persistent-hint
+            />
+          </v-card-text>
+        </v-card>
+      </v-menu>
+      <v-btn :icon="$globals.icons.chevronRight" flat rounded="md" density="comfortable" @click="() => changeWeek(1)" />
+    </div>
+    <div class="d-flex justify-end">
+      <BaseButtonGroup
+        class="d-flex"
+        :buttons="[
+          edit ? {
+            icon: $globals.icons.calendar,
+            text: $t('general.view'),
+            event: 'view',
+          } : {
+            icon: $globals.icons.edit,
+            text: $t('general.edit'),
+            event: 'edit',
+          },
+          {
+            icon: $globals.icons.dotsVertical,
+            text: '',
+            event: 'three-dot',
+            children: [
+              {
+                icon: $globals.icons.cartCheck,
+                text: $t('meal-plan.add-all-to-list'),
+                event: 'add-to-list',
+                disabled: !hasRecipes,
+              },
+              {
+                icon: $globals.icons.cog,
+                text: $t('general.settings'),
+                event: 'settings',
+              },
+            ],
+          },
+        ]"
+        @add-to-list="addAllToList"
+        @edit="router.push({ name: TABS.edit, query: route.query })"
+        @view="router.push({ name: TABS.view, query: route.query })"
+        @settings="router.push('/household/mealplan/settings')"
+      />
+    </div>
+    <div>
+      <NuxtPage
+        :mealplans="mealsByDate"
+        :actions="actions"
+      />
+    </div>
 
-            <v-card-text>
-              <v-number-input
-                v-model="numberOfDays"
-                :min="1"
-                inset
-                :label="$t('meal-plan.numberOfDays-label')"
-                :hint="$t('meal-plan.numberOfDays-hint')"
-                persistent-hint
-              />
-            </v-card-text>
-          </v-card>
-        </v-menu>
-        <v-btn :icon="$globals.icons.chevronRight" flat rounded="md" density="comfortable" @click="() => changeWeek(1)" />
-      </div>
-      <div class="d-flex justify-end">
-        <BaseButtonGroup
-          class="d-flex"
-          :buttons="[
-            edit ? {
-              icon: $globals.icons.calendar,
-              text: $t('general.view'),
-              event: 'view',
-            } : {
-              icon: $globals.icons.edit,
-              text: $t('general.edit'),
-              event: 'edit',
-            },
-            {
-              icon: $globals.icons.dotsVertical,
-              text: '',
-              event: 'three-dot',
-              children: [
-                {
-                  icon: $globals.icons.cartCheck,
-                  text: $t('meal-plan.add-all-to-list'),
-                  event: 'add-to-list',
-                  disabled: !hasRecipes,
-                },
-                {
-                  icon: $globals.icons.cog,
-                  text: $t('general.settings'),
-                  event: 'settings',
-                },
-              ],
-            },
-          ]"
-          @add-to-list="addAllToList"
-          @edit="router.push({ name: TABS.edit, query: route.query })"
-          @view="router.push({ name: TABS.view, query: route.query })"
-          @settings="router.push('/household/mealplan/settings')"
-        />
-      </div>
-      <div>
-        <NuxtPage
-          :mealplans="mealsByDate"
-          :actions="actions"
-        />
-      </div>
-
-      <v-row />
-    </template>
+    <v-row />
   </v-container>
 </template>
 
@@ -148,14 +125,7 @@ const TABS = {
 };
 
 const route = useRoute();
-const isPortions = computed(() => route.path.endsWith("/portions"));
 const router = useRouter();
-const viewTab = computed({
-  get: () => isPortions.value ? String(route.query.section || "week") : "calendar",
-  set: (value: string) => {
-    router.push(value === "calendar" ? "/household/mealplan/planner/view" : { path: "/household/mealplan/planner/portions", query: value === "week" ? {} : { section: value } });
-  },
-});
 const i18n = useI18n();
 const { household, actions: householdActions } = useHouseholdSelf();
 const { shoppingLists, open: shoppingListDialog, addAllToList } = useAddToShoppingListDialog();
@@ -246,7 +216,6 @@ const weekRange = computed(() => {
 // Update query parameters when date range changes
 watch(weekRange, (newRange) => {
   // Keep current route name and params, just update the query
-  if (isPortions.value) return;
   router.replace({
     name: route.name || TABS.view,
     params: route.params,
@@ -308,11 +277,3 @@ const weekRecipesWithScales = computed(() => {
     .map(recipe => ({ scale: 1, ...recipe }));
 });
 </script>
-
-<style scoped>
-.mealplan-tabs :deep(.v-tab) {
-  min-width: 0;
-  padding-inline: 9px;
-  font-size: 0.8rem;
-}
-</style>

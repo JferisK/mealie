@@ -1,7 +1,7 @@
 <template>
-  <PlannerPortions />
+  <div />
 </template>
 
 <script setup lang="ts">
-import PlannerPortions from "~/components/Domain/Planner/PlannerPortions.vue";
+await navigateTo({ path: "/household/nutrition", query: useRoute().query }, { replace: true });
 </script>

@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { mdiNutrition } from "@mdi/js";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import type { SideBarLink } from "~/types/application-types";
 import { useGroupSelf } from "~/composables/use-groups";
@@ -240,6 +241,12 @@ const topLinks = computed<SideBarLink[]>(() => [
     icon: $globals.icons.calendarMultiselect,
     title: i18n.t("meal-plan.meal-planner"),
     to: "/household/mealplan/planner/view",
+    restricted: true,
+  },
+  {
+    icon: mdiNutrition,
+    title: i18n.t("household-planner.nutritionNav"),
+    to: "/household/nutrition",
     restricted: true,
   },
   {
