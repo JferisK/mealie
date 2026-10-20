@@ -55,8 +55,9 @@
             <v-list-item-title class="mt-3 mb-1 text-top text-truncate w-100">
               {{ name }}
             </v-list-item-title>
-            <RecipeCardNutrition :recipe-id="recipeId" class="mb-1" />
-            <v-list-item-subtitle class="ma-0 text-top">
+            <!-- Fork: macros matter more than the description; they replace it to keep the card height -->
+            <RecipeCardNutrition v-if="hasNutrition" :recipe-id="recipeId" class="mb-1" />
+            <v-list-item-subtitle v-else class="ma-0 text-top">
               <SafeMarkdown v-if="description" :source="description" />
               <p v-else>
                 <br>
@@ -136,6 +137,7 @@ import { useLoggedInState } from "~/composables/use-logged-in-state";
 import RecipeCardImage from "./RecipeCardImage.vue";
 import RecipeCardRating from "./RecipeCardRating.vue";
 import RecipeCardNutrition from "./RecipeCardNutrition.vue";
+import { useRecipeNutrition } from "~/composables/use-recipe-nutrition";
 import RecipeChips from "./RecipeChips.vue";
 import RecipeContextMenu from "./RecipeContextMenu/RecipeContextMenu.vue";
 import RecipeFavoriteBadge from "./RecipeFavoriteBadge.vue";
@@ -183,6 +185,9 @@ const recipeRoute = computed<string>(() => {
   return showRecipeContent.value ? `/g/${groupSlug.value}/r/${props.slug}` : "";
 });
 const cursor = computed(() => showRecipeContent.value ? "pointer" : "auto");
+
+const { byId: nutrition } = useRecipeNutrition();
+const hasNutrition = computed(() => !!nutrition.value?.[props.recipeId]);
 </script>
 
 <style scoped>

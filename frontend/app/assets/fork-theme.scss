@@ -167,6 +167,9 @@ $radius-control: 10px;
     line-clamp: 2;
     overflow: hidden;
     padding-top: 14px;
+    // clamped lines would otherwise show in the bottom padding and run into the nutrition line
+    padding-bottom: 0;
+    margin-bottom: 6px;
   }
 }
 

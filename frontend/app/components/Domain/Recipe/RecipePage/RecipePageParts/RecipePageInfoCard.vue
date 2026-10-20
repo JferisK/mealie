@@ -30,22 +30,20 @@
           :total-time="recipe.totalTime"
           :perform-time="recipe.performTime"
         />
-        <RecipeYield
-          v-if="recipe.recipeYieldQuantity || recipe.recipeYield"
-          :yield-quantity="recipe.recipeYieldQuantity"
-          :yield-text="recipe.recipeYield"
-          :scale="recipeScale"
-          class="recipe-head__yield"
-        />
+        <!-- Fork: no yield row; portions are set with the scaler below -->
       </div>
-      <!-- Fork: kcal and macros per portion right under times and yield -->
-      <div v-if="perPortion.length" class="recipe-head__nutrition" :aria-label="$t('recipe.nutrition')">
-        <div v-for="item in perPortion" :key="item.label" class="recipe-head__nutrient">
-          <strong>{{ item.value }}</strong>
-          <span>{{ item.label }}</span>
+      <!-- Fork: kcal and macros per portion right under the times -->
+      <section v-if="perPortion.length" class="recipe-head__nutrition" :aria-label="$t('recipe.nutrition')">
+        <div class="recipe-head__nutrition-title">
+          {{ $t('recipe.per-serving') }}
         </div>
-        <span class="recipe-head__per-portion">{{ $t('recipe.per-serving') }}</span>
-      </div>
+        <div class="recipe-head__nutrients">
+          <div v-for="item in perPortion" :key="item.label" class="recipe-head__nutrient">
+            <span class="recipe-head__nutrient-value">{{ item.value }}</span>
+            <span class="recipe-head__nutrient-label">{{ item.label }}</span>
+          </div>
+        </div>
+      </section>
       <div class="recipe-head__actions">
         <RecipeLastMade
           v-if="isOwnGroup"
@@ -69,7 +67,6 @@ import { useLoggedInState } from "~/composables/use-logged-in-state";
 import RecipeRating from "~/components/Domain/Recipe/RecipeRating.vue";
 import RecipeLastMade from "~/components/Domain/Recipe/RecipeLastMade.vue";
 import RecipeTimeCard from "~/components/Domain/Recipe/RecipeTimeCard.vue";
-import RecipeYield from "~/components/Domain/Recipe/RecipeYield.vue";
 import RecipePageInfoCardImage from "~/components/Domain/Recipe/RecipePage/RecipePageParts/RecipePageInfoCardImage.vue";
 import type { Recipe } from "~/lib/api/types/recipe";
 import type { NoUndefinedField } from "~/lib/api/types/non-generated";
@@ -136,33 +133,56 @@ const { isOwnGroup } = useLoggedInState();
 
 .recipe-head__nutrition {
   display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recipe-head__nutrition-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(var(--v-theme-on-surface));
+  opacity: 0.85;
+}
+
+.recipe-head__nutrients {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  max-width: 520px;
+}
+
+@media (max-width: 480px) {
+  .recipe-head__nutrients {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .recipe-head__nutrient {
   display: flex;
   flex-direction: column;
-  min-width: 72px;
-  padding: 6px 12px;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
   border-radius: 10px;
-  background: rgba(var(--v-theme-primary), 0.12);
+  border: 1px solid rgba(var(--v-theme-primary), 0.55);
+  background: rgba(var(--v-theme-primary), 0.18);
+  text-align: center;
+}
+
+.recipe-head__nutrient-value {
+  font-size: 1.15rem;
+  font-weight: 700;
   line-height: 1.2;
+  color: rgb(var(--v-theme-on-surface));
+  white-space: nowrap;
 }
 
-.recipe-head__nutrient strong {
-  font-size: 1.05rem;
-}
-
-.recipe-head__nutrient span,
-.recipe-head__per-portion {
-  font-size: 0.75rem;
-  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
-}
-
-.recipe-head__per-portion {
-  align-self: center;
+.recipe-head__nutrient-label {
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .recipe-head__title {
@@ -192,24 +212,6 @@ const { isOwnGroup } = useLoggedInState();
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
-}
-
-.recipe-head__yield :deep(.v-row) {
-  font-size: 0.9rem !important;
-  flex-wrap: nowrap !important;
-}
-
-.recipe-head__yield :deep(.v-icon) {
-  font-size: 18px;
-  margin-inline-end: 6px;
-}
-
-.recipe-head__yield :deep(br) {
-  display: none;
-}
-
-.recipe-head__yield :deep(.font-weight-bold) {
-  margin-right: 4px;
 }
 
 .recipe-head__actions {
