@@ -1337,8 +1337,6 @@
     "portionsView": "Portions & preparation",
     "nativeShoppingHint": "Frozen portions are already subtracted. Adding the ingredients twice puts them on the list twice.",
     "addFreshToList": "Add fresh ingredients to list",
-    "shoppingRecipeMissing": "Recipe could not be loaded. Please refresh and try again.",
-    "shoppingYieldMissing": "Set the number of servings in the recipe before adding ingredients.",
     "stockTab": "Freezer",
     "cookTab": "Cook",
     "freezerHint": "Frozen portions with date and location. Stock only drops when you confirm a withdrawal.",

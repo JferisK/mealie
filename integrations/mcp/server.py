@@ -206,30 +206,36 @@ async def shopping_list(list_id: str) -> dict:
 
 @mcp.tool()
 async def preview_week_shopping(plan_id: str) -> dict:
-    """Preview native recipe quantities for fresh cooking only. Frozen portions are excluded.
+    """Preview the week's purchases for fresh cooking: grams summed per ingredient across all dishes.
 
-    Show the preview and existing list before adding. Quantities are recipe multiples, not servings.
+    Frozen portions are excluded. Recipe lines without planner facts (spices, salt) are added once as text.
+    Show the preview and existing list, then call add_week_to_shopping_list.
     """
-    state = await planner_state()
     summary = await week_summary(plan_id)
-    recipes = []
-    for dish in summary["cooking"]:
-        if dish["servings"] <= 0:
-            continue
-        facts = state["state"]["facts"][dish["recipe_id"]]
-        recipe = await get_recipe(facts["slug"])
-        servings = recipe.get("recipeServings")
-        if not servings or servings <= 0:
-            raise ValueError("Set the native recipe serving count before adding shopping ingredients")
-        recipes.append({"recipeId": recipe["id"], "recipeIncrementQuantity": dish["servings"] / servings})
-    return {"recipes": recipes, "notice": "Adding these again adds the quantities again. Review the existing list."}
+    return {
+        "items": [{"name": i["name"], "state": i["state"], "grams": i["grams"]} for i in summary["shopping"]],
+        "notice": "Adding the week again adds the quantities again. Review the existing list.",
+    }
+
+
+@mcp.tool()
+async def add_week_to_shopping_list(plan_id: str, list_id: str, user_confirmed: bool = False) -> dict:
+    """Add the reviewed week preview to a native list. Do not retry blindly: additions are not idempotent.
+
+    Merges with unchecked items of the same name and a compatible unit.
+    """
+    if not user_confirmed:
+        raise ValueError("User confirmation required")
+    return await request(
+        "POST", f"/api/households/planning/plans/{path_part(plan_id)}/shopping-list/{path_part(list_id)}"
+    )
 
 
 @mcp.tool()
 async def add_recipes_to_shopping_list(list_id: str, recipes: list[dict], user_confirmed: bool = False) -> dict:
-    """Add the reviewed preview to a native list. Do not retry blindly: additions are not idempotent.
+    """Add single recipes to a native list on request. For a planned week use add_week_to_shopping_list.
 
-    Native Mealie merges ingredients and respects pantry foods. Use the exact preview recipe quantities.
+    Do not retry blindly: additions are not idempotent. Unparsed recipe text is neither scaled nor summed.
     """
     if not user_confirmed:
         raise ValueError("User confirmation required")

@@ -1,5 +1,6 @@
 """Pure calculations: unknown values never become zero or inferred nutrition."""
 
+import re
 from datetime import UTC, date, datetime, timedelta
 from statistics import mean
 
@@ -82,8 +83,12 @@ def plan_summary(plan: PlanIn, state: PlannerState) -> dict:
         for i in facts.ingredients:
             # State is part of identity: cooked rice and dry rice cannot be merged.
             identity = f"{i.name.strip().casefold()}|{i.state}"
-            item = shopping.setdefault(identity, {"id": identity, "name": i.name, "state": i.state, "grams": 0.0})
+            item = shopping.setdefault(
+                identity, {"id": identity, "name": i.name, "state": i.state, "grams": 0.0, "recipe_ids": []}
+            )
             item["grams"] += i.grams * e.servings / facts.servings
+            if str(e.recipe_id) not in item["recipe_ids"]:
+                item["recipe_ids"].append(str(e.recipe_id))
     for item in shopping.values():
         item["grams"] = round(item["grams"], 1)
     for day in days.values():
@@ -97,6 +102,40 @@ def plan_summary(plan: PlanIn, state: PlannerState) -> dict:
             "Ingredient amounts use the stated preparation state."
         ),
     }
+
+
+# "600 g Hähnchenbrust" -> "Hähnchenbrust"; only metric weights/volumes that facts store as grams.
+_LEADING_AMOUNT = re.compile(r"^\s*\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\s+", re.IGNORECASE)
+
+
+def week_shopping_items(
+    plan: PlanIn, state: PlannerState, native_lines: dict[str, list[str]]
+) -> tuple[list[dict], list[str]]:
+    """Purchases for freshly cooked meals: summed grams per ingredient, plus native recipe lines without facts.
+
+    Raw and as-sold amounts are both bought as-is and merge; cooked amounts stay separate.
+    Lines without structured facts (spices, salt) cannot be scaled, so each distinct text is listed once.
+    """
+    items: dict[str, dict] = {}
+    for s in plan_summary(plan, state)["shopping"]:
+        cooked = s["state"] == "cooked"
+        name = s["name"].strip() + (" (gekocht)" if cooked else "")
+        item = items.setdefault(
+            f"{s['name'].strip().casefold()}|{cooked}", {"name": name, "grams": 0.0, "recipe_ids": []}
+        )
+        item["grams"] = round(item["grams"] + s["grams"], 1)
+        item["recipe_ids"] += [r for r in s["recipe_ids"] if r not in item["recipe_ids"]]
+
+    extras: dict[str, str] = {}
+    snapshots = plan.recipe_snapshots if isinstance(plan, PlanOut) else {}
+    for recipe_id in dict.fromkeys(str(e.recipe_id) for e in plan.entries if not e.batch_id):
+        facts = snapshots.get(recipe_id, state.facts.get(recipe_id))
+        covered = {i.name.strip().casefold() for i in facts.ingredients} if facts else set()
+        for line in native_lines.get(recipe_id, []):
+            text = line.strip()
+            if text and _LEADING_AMOUNT.sub("", text).casefold() not in covered:
+                extras.setdefault(text.casefold(), text)
+    return list(items.values()), list(extras.values())
 
 
 def monthly_proposal(state: PersonalState, today: date | None = None) -> GoalRevision:

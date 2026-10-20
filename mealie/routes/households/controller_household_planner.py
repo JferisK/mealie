@@ -7,6 +7,11 @@ from mealie.db.models.users.users import User
 from mealie.repos.repository_household_planner import RepositoryHouseholdPlanner, RevisionConflict
 from mealie.routes._base import controller
 from mealie.routes._base.base_controllers import BaseUserController
+from mealie.schema.household.group_shopping_list import (
+    ShoppingListItemCreate,
+    ShoppingListItemRecipeRefCreate,
+    ShoppingListItemsCollectionOut,
+)
 from mealie.schema.household_planner.models import (
     BatchIn,
     GoalRevision,
@@ -21,8 +26,15 @@ from mealie.schema.household_planner.models import (
     RecipeFactsIn,
     StateOut,
 )
-from mealie.services.household_planner.calculations import monthly_proposal, plan_summary, reserved
+from mealie.schema.recipe.recipe_ingredient import IngredientUnit, SaveIngredientUnit, StandardizedUnitType
+from mealie.services.household_planner.calculations import (
+    monthly_proposal,
+    plan_summary,
+    reserved,
+    week_shopping_items,
+)
 from mealie.services.household_planner.service import PlannerService
+from mealie.services.household_services.shopping_lists import ShoppingListService
 
 router = APIRouter(prefix="/households/planning", tags=["Households: Planning"])
 
@@ -210,6 +222,62 @@ class HouseholdPlannerController(BaseUserController):
             raise HTTPException(422, "Unknown shopping item")
         plan.checked_items = list(dict.fromkeys(data))
         return self._write(s)
+
+    def _gram_unit(self, service: ShoppingListService) -> IngredientUnit:
+        units = service.data_matcher.units_by_id.values()
+        gram = next(
+            (u for u in units if u.standard_unit == StandardizedUnitType.GRAM and u.standard_quantity == 1), None
+        )
+        if gram:
+            return gram
+        # Standardized so planner grams merge with existing g/kg items on the list.
+        return self.repos.ingredient_units.create(
+            SaveIngredientUnit(
+                name="Gramm",
+                abbreviation="g",
+                use_abbreviation=True,
+                standard_quantity=1,
+                standard_unit=StandardizedUnitType.GRAM,
+                group_id=self.group_id,
+            )
+        )
+
+    @router.post("/plans/{plan_id}/shopping-list/{list_id}", response_model=ShoppingListItemsCollectionOut)
+    def add_to_shopping_list(self, plan_id: UUID, list_id: UUID):
+        """Add the week's fresh-cooking purchases to a native list. Not idempotent, like adding recipes natively."""
+        s = self._service()
+        plan = s.state.plans.get(str(plan_id))
+        if not plan:
+            raise HTTPException(404, "Plan not found")
+        shopping_list = self.repos.group_shopping_lists.get_one(list_id)
+        if not shopping_list:
+            raise HTTPException(404, "Shopping list not found")
+        native: dict[str, list[str]] = {}
+        for recipe_id in {str(e.recipe_id) for e in plan.entries if not e.batch_id}:
+            recipe = self.repos.recipes.get_one(UUID(recipe_id), key="id")
+            if recipe:
+                native[recipe_id] = [
+                    i.display or i.note or "" for i in recipe.recipe_ingredient if not i.referenced_recipe
+                ]
+        try:
+            items, extras = week_shopping_items(plan, s.state, native)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        service = ShoppingListService(self.repos)
+        gram = self._gram_unit(service) if items else None
+        create = [
+            ShoppingListItemCreate(
+                shopping_list_id=list_id,
+                note=item["name"],
+                quantity=item["grams"],
+                unit_id=gram.id if gram else None,
+                recipe_references=[
+                    ShoppingListItemRecipeRefCreate(recipe_id=UUID(r), recipe_quantity=0) for r in item["recipe_ids"]
+                ],
+            )
+            for item in items
+        ] + [ShoppingListItemCreate(shopping_list_id=list_id, note=text, quantity=0) for text in extras]
+        return service.bulk_create_items(create)
 
     @router.post("/batches", response_model=StateOut)
     def add_batch(self, data: BatchIn, revision: int = Query(ge=0)):

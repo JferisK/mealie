@@ -1415,3 +1415,33 @@ def test_shopping_lists_add_recipe_on_hand_food(
     as_json = utils.assert_deserialize(response, 200)
     food_ids = {item["foodId"] for item in as_json["listItems"]}
     assert food_ids == {str(on_hand_food.id), str(other_food.id)}
+
+
+def test_shopping_lists_add_recipe_scales_repeated_ingredient(
+    api_client: TestClient, unique_user: TestUser, shopping_lists: list[ShoppingListOut]
+):
+    """The same food listed twice in one recipe must be scaled for both occurrences."""
+    food = unique_user.repos.ingredient_foods.create(
+        SaveIngredientFood(name=random_string(10), group_id=unique_user.group_id)
+    )
+    recipe = unique_user.repos.recipes.create(
+        Recipe(
+            user_id=unique_user.user_id,
+            group_id=unique_user.group_id,
+            name=random_string(10),
+            recipe_ingredient=[RecipeIngredient(quantity=100, food=food), RecipeIngredient(quantity=100, food=food)],
+        )
+    )
+    sample_list = random.choice(shopping_lists)
+    payload = utils.jsonify(
+        [ShoppingListAddRecipeParamsBulk(recipe_id=recipe.id, recipe_increment_quantity=2).model_dump()]
+    )
+
+    response = api_client.post(
+        api_routes.households_shopping_lists_item_id_recipe(sample_list.id), json=payload, headers=unique_user.token
+    )
+    as_json = utils.assert_deserialize(response, 200)
+
+    items = [i for i in as_json["listItems"] if i["foodId"] == str(food.id)]
+    assert [i["quantity"] for i in items] == [400]
+    assert items[0]["recipeReferences"][0]["recipeQuantity"] == 200

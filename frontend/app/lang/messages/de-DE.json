@@ -1337,8 +1337,6 @@
     "portionsView": "Portionen & Vorbereitung",
     "nativeShoppingHint": "Gefrierportionen sind schon abgezogen. Wer die Zutaten zweimal hinzufügt, bekommt sie doppelt auf die Liste.",
     "addFreshToList": "Frische Zutaten auf die Liste",
-    "shoppingRecipeMissing": "Das Rezept konnte nicht geladen werden. Bitte aktualisieren und erneut versuchen.",
-    "shoppingYieldMissing": "Trage zuerst die Anzahl der Portionen im Rezept ein.",
     "stockTab": "Vorrat",
     "cookTab": "Kochen",
     "freezerHint": "Eingefrorene Portionen. Entnommen wird erst, wenn ihr es bestätigt.",

@@ -1,6 +1,6 @@
 <template>
   <div class="pp">
-    <RecipeDialogAddToShoppingList v-model="shoppingDialog" :recipes="shoppingRecipes" :shopping-lists="shoppingLists" />
+    <PlannerShoppingDialog v-if="currentPlan" v-model="shoppingDialog" :plan-id="currentPlan.id" @added="shoppingDone = true" />
     <v-alert
       v-if="error"
       type="error"
@@ -12,6 +12,17 @@
     >
       {{ error }}
     </v-alert>
+    <v-alert
+      v-if="shoppingDone"
+      type="success"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      closable
+      @click:close="shoppingDone = false"
+    >
+      {{ t('shoppingAdded') }}
+    </v-alert>
     <v-progress-linear v-if="busy && !data" indeterminate :aria-label="t('loading')" />
     <template v-if="data">
       <!-- Kochen -->
@@ -19,7 +30,7 @@
         <div class="pp-toolbar">
           <PlannerWeekNav v-model="week" :disabled="busy" />
           <div class="pp-toolbar__actions">
-            <v-btn color="primary" variant="flat" :prepend-icon="mdiCartOutline" :disabled="busy || !currentPlan || !summary?.cooking.length" @click="prepareShopping">
+            <v-btn color="primary" variant="flat" :prepend-icon="mdiCartOutline" :disabled="busy || !currentPlan || !summary?.cooking.length" @click="shoppingDialog = true">
               {{ t('createShopping') }}
             </v-btn>
             <v-btn variant="text" color="primary" to="/shopping-lists">
@@ -216,14 +227,12 @@
 
 <script setup lang="ts">
 import { mdiSnowflake, mdiCartOutline, mdiMagnify, mdiPlus, mdiPotSteamOutline } from "@mdi/js";
-import RecipeDialogAddToShoppingList, { type RecipeWithScale } from "~/components/Domain/Recipe/RecipeDialogAddToShoppingList.vue";
-import { useAddToShoppingListDialog } from "~/composables/shopping-list-page/use-add-to-shopping-list-dialog";
-import { useUserApi } from "~/composables/api";
 import { format, startOfWeek, parseISO } from "date-fns";
 import type { BatchIn, GoalsIn, ProfileIn } from "~/lib/api/types/household-planner";
 import { useHouseholdPlanner, type PlannerSummary } from "~/composables/use-household-planner";
 import PlannerPersonalPanel from "~/components/Domain/Planner/PlannerPersonalPanel.vue";
 import PlannerSheet from "~/components/Domain/Planner/PlannerSheet.vue";
+import PlannerShoppingDialog from "~/components/Domain/Planner/PlannerShoppingDialog.vue";
 import PlannerWeekNav from "~/components/Domain/Planner/PlannerWeekNav.vue";
 import { usePlannerPageRefresh } from "~/composables/use-planner-page";
 
@@ -234,29 +243,8 @@ const { api, data, personal, members, busy, error, run, refresh, mutate, private
 const route = useRoute();
 const pageProps = defineProps<{ section?: "ideas" | "week" | "cook" | "freezer" | "goals" }>();
 const tab = computed(() => pageProps.section ?? (["freezer", "goals"].includes(String(route.query.section)) ? String(route.query.section) : "cook"));
-const nativeApi = useUserApi();
-const { shoppingLists, open: shoppingDialog, getShoppingLists } = useAddToShoppingListDialog();
-const shoppingRecipes = ref<RecipeWithScale[]>([]);
-function prepareShopping() {
-  run(async () => {
-    await loadSummary();
-    const recipes: RecipeWithScale[] = [];
-    for (const dish of summary.value?.cooking || []) {
-      if (dish.servings <= 0) continue;
-      const slug = data.value?.state.facts?.[dish.recipe_id]?.slug;
-      if (!slug) throw new Error(t("shoppingRecipeMissing"));
-      const response = await nativeApi.recipes.getOne(slug);
-      if (response.error || !response.data) throw new Error(t("shoppingRecipeMissing"));
-      const recipe = response.data;
-      if (!recipe.recipeServings || recipe.recipeServings <= 0) throw new Error(`${recipe.name}: ${t("shoppingYieldMissing")}`);
-      recipes.push({ ...recipe, scale: dish.servings / recipe.recipeServings });
-    }
-    if (!recipes.length) return;
-    shoppingRecipes.value = recipes;
-    await getShoppingLists();
-    shoppingDialog.value = true;
-  });
-}
+const shoppingDialog = ref(false);
+const shoppingDone = ref(false);
 const stockSearch = ref("");
 const showEmpty = ref(false);
 const withdrawBatch = ref<string | null>(null);
@@ -280,6 +268,7 @@ function available(id: string) {
 }
 async function loadSummary() { summary.value = currentPlan.value?.id ? await api.read<PlannerSummary>(`/plans/${currentPlan.value.id}/summary`) : null; }
 watch(week, () => {
+  shoppingDone.value = false;
   summary.value = null;
   run(loadSummary);
 });

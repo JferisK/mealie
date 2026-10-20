@@ -12,20 +12,19 @@ from starlette.responses import JSONResponse
 
 
 class GatewayTests(unittest.IsolatedAsyncioTestCase):
-    async def test_native_shopping_scales_and_rejects_unknown_yield(self):
-        state = {"state": {"facts": {"r1": {"slug": "soup"}, "r2": {"slug": "frozen-only"}}}}
-        summary = {"cooking": [{"recipe_id": "r1", "servings": 2.5}, {"recipe_id": "r2", "servings": 0}]}
-        with (
-            patch.object(server, "planner_state", AsyncMock(return_value=state)),
-            patch.object(server, "week_summary", AsyncMock(return_value=summary)),
-            patch.object(server, "get_recipe", AsyncMock(return_value={"id": "r1", "recipeServings": 4})) as recipe,
-        ):
+    async def test_week_shopping_preview_uses_summed_planner_grams(self):
+        summary = {"shopping": [{"id": "huhn|raw", "name": "Huhn", "state": "raw", "grams": 1000, "recipe_ids": ["a"]}]}
+        with patch.object(server, "week_summary", AsyncMock(return_value=summary)):
             preview = await server.preview_week_shopping("week")
-            self.assertEqual(preview["recipes"], [{"recipeId": "r1", "recipeIncrementQuantity": 0.625}])
-            recipe.assert_awaited_once_with("soup")
-            recipe.return_value = {"id": "r1", "recipeServings": 0}
-            with self.assertRaisesRegex(ValueError, "serving count"):
-                await server.preview_week_shopping("week")
+        self.assertEqual(preview["items"], [{"name": "Huhn", "state": "raw", "grams": 1000}])
+
+    async def test_week_shopping_write_requires_confirmation(self):
+        with patch.object(server, "request", AsyncMock(return_value={})) as request:
+            with self.assertRaisesRegex(ValueError, "confirmation"):
+                await server.add_week_to_shopping_list("week", "list")
+            request.assert_not_awaited()
+            await server.add_week_to_shopping_list("week", "list", True)
+            request.assert_awaited_once_with("POST", "/api/households/planning/plans/week/shopping-list/list")
 
     async def test_native_shopping_write_requires_confirmation(self):
         with patch.object(server, "request", AsyncMock(return_value={})) as request:

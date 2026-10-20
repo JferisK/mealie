@@ -1,6 +1,6 @@
 <template>
   <div class="pw">
-    <RecipeDialogAddToShoppingList v-model="shoppingDialog" :recipes="shoppingRecipes" :shopping-lists="shoppingLists" />
+    <PlannerShoppingDialog v-if="plan" v-model="shoppingDialog" :plan-id="plan.id" @added="shoppingDone = true" />
 
     <div class="pw-toolbar">
       <PlannerWeekNav v-model="week" :disabled="busy" />
@@ -10,7 +10,7 @@
           color="primary"
           :prepend-icon="mdiCartOutline"
           :disabled="busy || !freshDishes.length"
-          @click="prepareShopping"
+          @click="shoppingDialog = true"
         >
           {{ t('createShopping') }}
         </v-btn>
@@ -254,14 +254,12 @@ import {
   mdiSnowflake,
 } from "@mdi/js";
 import { addDays, format, parseISO, startOfWeek } from "date-fns";
-import RecipeDialogAddToShoppingList, { type RecipeWithScale } from "~/components/Domain/Recipe/RecipeDialogAddToShoppingList.vue";
-import { useUserApi } from "~/composables/api";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
-import { useAddToShoppingListDialog } from "~/composables/shopping-list-page/use-add-to-shopping-list-dialog";
 import type { AllocationIn, RecipeFactsOut } from "~/lib/api/types/household-planner";
 import { toPeople, type PlannerMember } from "~/lib/planner/people";
 import { usePlannerPageRefresh } from "~/composables/use-planner-page";
 import PlannerSheet from "~/components/Domain/Planner/PlannerSheet.vue";
+import PlannerShoppingDialog from "~/components/Domain/Planner/PlannerShoppingDialog.vue";
 import PlannerWeekNav from "~/components/Domain/Planner/PlannerWeekNav.vue";
 
 type Meal = "breakfast" | "lunch" | "dinner";
@@ -270,8 +268,6 @@ const i18n = useI18n();
 const auth = useMealieAuth();
 const t = (key: string) => i18n.t(`household-planner.${key}`);
 const { api, data, personal, members, busy, error, run, refresh } = useHouseholdPlanner();
-const nativeApi = useUserApi();
-const { shoppingLists, open: shoppingDialog, getShoppingLists } = useAddToShoppingListDialog();
 
 const meals: Meal[] = ["breakfast", "lunch", "dinner"];
 const today = format(new Date(), "yyyy-MM-dd");
@@ -491,37 +487,9 @@ function consume(entryId: string) {
 watch(week, () => (shoppingDone.value = false));
 
 // ---- Shopping -----------------------------------------------------------
-const shoppingRecipes = ref<RecipeWithScale[]>([]);
+const shoppingDialog = ref(false);
 const shoppingDone = ref(false);
-const freshDishes = computed(() => {
-  const counts = new Map<string, number>();
-  for (const e of entries.value) {
-    if (e.batch_id) continue;
-    counts.set(e.recipe_id, (counts.get(e.recipe_id) || 0) + e.servings);
-  }
-  return [...counts.entries()];
-});
-
-function prepareShopping() {
-  run(async () => {
-    const result: RecipeWithScale[] = [];
-    for (const [recipeId, servings] of freshDishes.value) {
-      const slug = data.value?.state.facts?.[recipeId]?.slug;
-      if (!slug) throw new Error(t("shoppingRecipeMissing"));
-      const response = await nativeApi.recipes.getOne(slug);
-      if (response.error || !response.data) throw new Error(t("shoppingRecipeMissing"));
-      const recipe = response.data;
-      if (!recipe.recipeServings || recipe.recipeServings <= 0) throw new Error(`${recipe.name}: ${t("shoppingYieldMissing")}`);
-      result.push({ ...recipe, scale: servings / recipe.recipeServings });
-    }
-    shoppingRecipes.value = result;
-    await getShoppingLists();
-    shoppingDialog.value = true;
-  });
-}
-watch(shoppingDialog, (open, wasOpen) => {
-  if (wasOpen && !open) shoppingDone.value = true;
-});
+const freshDishes = computed(() => entries.value.filter(e => !e.batch_id));
 
 usePlannerPageRefresh(() => run(refresh), busy);
 
