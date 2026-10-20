@@ -444,6 +444,7 @@
     "perform-time": "Kochzeit",
     "prep-time": "Vorbereitung",
     "protein-content": "Eiweiß",
+    "per-serving": "pro Portion",
     "public-recipe": "Öffentliches Rezept",
     "recipe-created": "Rezept angelegt",
     "recipe-image": "Rezeptbild",
@@ -640,6 +641,7 @@
     "toggle-recipe": "Rezept ein/aus"
   },
   "recipe-finder": {
+    "nutrition-per-portion": "Werte pro Portion. Sobald ein Regler aktiv ist, werden Rezepte ohne Nährwerte ausgeblendet.",
     "recipe-finder": "Rezept-Suche",
     "recipe-finder-description": "Suche nach Rezepten basierend auf den Zutaten, die du zur Hand hast. Du kannst auch nach verfügbaren Werkzeugen filtern und eine maximale Anzahl an fehlenden Zutaten oder Werkzeugen festlegen.",
     "selected-ingredients": "Ausgewählte Zutaten",

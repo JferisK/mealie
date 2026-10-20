@@ -40,6 +40,7 @@
         <v-card-title class="px-4 fork-recipe-card__title">
           {{ name }}
         </v-card-title>
+        <RecipeCardNutrition :recipe-id="recipeId" class="px-4 pb-1" />
 
         <div
           class="recipe-card-footer"
@@ -109,6 +110,7 @@ import RecipeChips from "./RecipeChips.vue";
 import RecipeContextMenu from "./RecipeContextMenu/RecipeContextMenu.vue";
 import RecipeCardImage from "./RecipeCardImage.vue";
 import RecipeCardRating from "./RecipeCardRating.vue";
+import RecipeCardNutrition from "./RecipeCardNutrition.vue";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 
 interface Props {

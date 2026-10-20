@@ -55,6 +55,7 @@
             <v-list-item-title class="mt-3 mb-1 text-top text-truncate w-100">
               {{ name }}
             </v-list-item-title>
+            <RecipeCardNutrition :recipe-id="recipeId" class="mb-1" />
             <v-list-item-subtitle class="ma-0 text-top">
               <SafeMarkdown v-if="description" :source="description" />
               <p v-else>
@@ -134,6 +135,7 @@
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import RecipeCardImage from "./RecipeCardImage.vue";
 import RecipeCardRating from "./RecipeCardRating.vue";
+import RecipeCardNutrition from "./RecipeCardNutrition.vue";
 import RecipeChips from "./RecipeChips.vue";
 import RecipeContextMenu from "./RecipeContextMenu/RecipeContextMenu.vue";
 import RecipeFavoriteBadge from "./RecipeFavoriteBadge.vue";

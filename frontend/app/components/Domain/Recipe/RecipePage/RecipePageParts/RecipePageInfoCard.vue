@@ -38,6 +38,14 @@
           class="recipe-head__yield"
         />
       </div>
+      <!-- Fork: kcal and macros per portion right under times and yield -->
+      <div v-if="perPortion.length" class="recipe-head__nutrition" :aria-label="$t('recipe.nutrition')">
+        <div v-for="item in perPortion" :key="item.label" class="recipe-head__nutrient">
+          <strong>{{ item.value }}</strong>
+          <span>{{ item.label }}</span>
+        </div>
+        <span class="recipe-head__per-portion">{{ $t('recipe.per-serving') }}</span>
+      </div>
       <div class="recipe-head__actions">
         <RecipeLastMade
           v-if="isOwnGroup"
@@ -72,8 +80,25 @@ interface Props {
   landscape: boolean;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   recipeScale: 1,
+});
+
+const i18n = useI18n();
+const perPortion = computed(() => {
+  const n = props.recipe.nutrition;
+  const number = (v: string | null | undefined) => {
+    const parsed = v == null ? Number.NaN : Number.parseFloat(String(v).replace(",", "."));
+    return Number.isFinite(parsed) ? Math.round(parsed) : null;
+  };
+  const items = [
+    { label: "kcal", value: number(n?.calories) },
+    { label: i18n.t("recipe.protein-content"), value: number(n?.proteinContent), unit: "g" },
+    { label: i18n.t("recipe.carbohydrate-content"), value: number(n?.carbohydrateContent), unit: "g" },
+    { label: i18n.t("recipe.fat-content"), value: number(n?.fatContent), unit: "g" },
+  ];
+  if (items[0]!.value === null) return [];
+  return items.filter(i => i.value !== null).map(i => ({ label: i.label, value: `${i.value}${i.unit ? ` ${i.unit}` : ""}` }));
 });
 
 const { isOwnGroup } = useLoggedInState();
@@ -107,6 +132,37 @@ const { isOwnGroup } = useLoggedInState();
 .recipe-head__image--side {
   flex: 0 0 50%;
   border-radius: 0 var(--fork-radius-card) 0 0;
+}
+
+.recipe-head__nutrition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.recipe-head__nutrient {
+  display: flex;
+  flex-direction: column;
+  min-width: 72px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-primary), 0.12);
+  line-height: 1.2;
+}
+
+.recipe-head__nutrient strong {
+  font-size: 1.05rem;
+}
+
+.recipe-head__nutrient span,
+.recipe-head__per-portion {
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.recipe-head__per-portion {
+  align-self: center;
 }
 
 .recipe-head__title {

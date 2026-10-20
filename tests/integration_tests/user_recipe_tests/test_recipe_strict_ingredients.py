@@ -96,3 +96,17 @@ def test_planner_facts_require_parsed_recipe(api_client: TestClient, unique_user
     )
     assert response.status_code == 422
     assert "parsen" in response.json()["detail"]
+
+
+def test_recipe_search_by_id_list(api_client: TestClient, unique_user: TestUser):
+    """The recipe explorer's nutrition filter resolves to `id IN [...]`; an unknown id yields nothing."""
+    wanted, other = unparsed_recipe(unique_user), unparsed_recipe(unique_user)
+    for ids, expected in (([wanted.id], {wanted.slug}), (["00000000-0000-0000-0000-000000000000"], set())):
+        query_filter = "id IN [" + ", ".join(f'"{i}"' for i in ids) + "]"
+        response = api_client.get(
+            api_routes.recipes, params={"queryFilter": query_filter, "perPage": -1}, headers=unique_user.token
+        )
+        assert response.status_code == 200, response.text
+        slugs = {r["slug"] for r in response.json()["items"]}
+        assert slugs == expected
+        assert other.slug not in slugs

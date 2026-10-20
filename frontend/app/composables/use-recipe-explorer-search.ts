@@ -17,6 +17,15 @@ import {
 } from "~/composables/store";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import { useUserSearchQuerySession, useUserSortPreferences } from "~/composables/use-users/preferences";
+import {
+  defaultNutritionFilter,
+  nutritionFilterActive,
+  parseNutritionFilter,
+  recipeIdFilter,
+  serializeNutritionFilter,
+  useRecipeNutrition,
+  type NutritionFilter,
+} from "~/composables/use-recipe-nutrition";
 
 // Type for the composable return value
 interface RecipeExplorerSearchState {
@@ -37,6 +46,8 @@ interface RecipeExplorerSearchState {
   selectedHouseholds: Ref<NoUndefinedField<HouseholdSummary>[]>;
   selectedTags: Ref<NoUndefinedField<RecipeTag>[]>;
   selectedTools: Ref<NoUndefinedField<RecipeTool>[]>;
+  selectedNutrition: Ref<NutritionFilter>;
+  nutritionAvailable: ComputedRef<boolean>;
   passedQueryWithSeed: ComputedRef<RecipeSearchQuery & { _searchSeed: string }>;
   search: () => Promise<void>;
   reset: () => void;
@@ -85,6 +96,10 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
   const selectedHouseholds = ref<NoUndefinedField<HouseholdSummary>[]>([]);
   const selectedTags = ref<NoUndefinedField<RecipeTag>[]>([]);
   const selectedTools = ref<NoUndefinedField<RecipeTool>[]>([]);
+  // Fork: per-portion kcal/macros ranges, resolved to recipe ids from the planner facts
+  const selectedNutrition = ref<NutritionFilter>(defaultNutritionFilter());
+  const nutrition = useRecipeNutrition();
+  const nutritionAvailable = computed(() => isOwnGroup.value && Object.keys(nutrition.byId.value || {}).length > 0);
 
   // Query defaults
   const queryDefaults = {
@@ -125,6 +140,9 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
       requireAllFoods: state.value.requireAllFoods,
       orderBy: state.value.orderBy,
       orderDirection: state.value.orderDirection,
+      ...(nutritionAvailable.value && nutritionFilterActive(selectedNutrition.value)
+        ? { queryFilter: recipeIdFilter(nutrition.matchingIds(selectedNutrition.value)) }
+        : {}),
     };
   }
 
@@ -189,6 +207,7 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
     selectedHouseholds.value = [];
     selectedTags.value = [];
     selectedTools.value = [];
+    selectedNutrition.value = defaultNutritionFilter();
   }
 
   function toggleOrderDirection() {
@@ -224,6 +243,7 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
         requireAllTags: passedQuery.value.requireAllTags ? "true" : undefined,
         requireAllTools: passedQuery.value.requireAllTools ? "true" : undefined,
         requireAllFoods: passedQuery.value.requireAllFoods ? "true" : undefined,
+        nutrition: serializeNutritionFilter(selectedNutrition.value) || undefined,
       },
     };
     await router.push({ query });
@@ -288,6 +308,8 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
     else {
       state.value.requireAllFoods = queryDefaults.requireAllFoods;
     }
+
+    selectedNutrition.value = parseNutritionFilter(query.nutrition as string | undefined);
 
     const promises: Promise<void>[] = [];
 
@@ -394,6 +416,9 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
       }
     }
 
+    if (isOwnGroup.value) {
+      await nutrition.load(true);
+    }
     await hydrateSearch();
     await search();
     state.value.ready = true;
@@ -424,6 +449,7 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
       selectedHouseholds,
       selectedTags,
       selectedTools,
+      selectedNutrition,
     ],
     async () => {
       if (state.value.ready && state.value.auto) {
@@ -432,6 +458,7 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
     },
     {
       debounce: 500,
+      deep: true,
     },
   );
 
@@ -443,8 +470,10 @@ function createRecipeExplorerSearchState(groupSlug: ComputedRef<string>): Recipe
     selectedHouseholds,
     selectedTags,
     selectedTools,
+    selectedNutrition,
 
     // Computed
+    nutritionAvailable,
     passedQueryWithSeed,
 
     // Methods

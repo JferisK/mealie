@@ -51,6 +51,12 @@
     {{ $t("general.foods") }}
   </SearchFilter>
 
+  <!-- Fork: nutrition per portion -->
+  <RecipeExplorerPageNutritionFilter
+    v-if="nutritionAvailable"
+    v-model="selectedNutrition"
+  />
+
   <!-- Household Filter -->
   <SearchFilter
     v-if="households.length > 1"
@@ -66,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import RecipeExplorerPageNutritionFilter from "./RecipeExplorerPageNutritionFilter.vue";
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import { useRecipeExplorerSearch } from "~/composables/use-recipe-explorer-search";
 import {
@@ -94,6 +101,8 @@ const {
   selectedHouseholds,
   selectedTags,
   selectedTools,
+  selectedNutrition,
+  nutritionAvailable,
 } = useRecipeExplorerSearch(groupSlug);
 
 const { store: categories } = isOwnGroup.value ? useCategoryStore() : usePublicCategoryStore(groupSlug.value);

@@ -444,6 +444,7 @@
     "perform-time": "Cook Time",
     "prep-time": "Prep Time",
     "protein-content": "Protein",
+    "per-serving": "per serving",
     "public-recipe": "Public Recipe",
     "recipe-created": "Recipe created",
     "recipe-image": "Recipe Image",
@@ -640,6 +641,7 @@
     "toggle-recipe": "Toggle Recipe"
   },
   "recipe-finder": {
+    "nutrition-per-portion": "Values per portion. Recipes without nutrition are hidden while a slider is active.",
     "recipe-finder": "Recipe Finder",
     "recipe-finder-description": "Search for recipes based on ingredients you have on hand. You can also filter by tools you have available, and set a maximum number of missing ingredients or tools.",
     "selected-ingredients": "Selected Ingredients",
