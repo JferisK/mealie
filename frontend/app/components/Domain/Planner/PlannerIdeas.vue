@@ -31,7 +31,7 @@
     <ol v-else class="pi-list">
       <li v-for="idea in ideas" :key="idea.id" class="pi-card" :class="{ 'is-planned': planned(idea.recipe_id) }">
         <NuxtLink :to="recipeLink(idea.slug)" class="pi-card__media">
-          <img :src="imageFor(idea.recipe_id)" alt="" loading="lazy" @error="hideImage">
+          <img v-if="idea.image" :src="recipeSmallImage(idea.recipe_id, idea.image)" alt="" loading="lazy">
         </NuxtLink>
         <div class="pi-card__body">
           <div class="pi-card__head">
@@ -123,7 +123,7 @@
           :disabled="busy"
           @click="propose(r.id!)"
         >
-          <img :src="imageFor(r.id!)" alt="" loading="lazy" @error="hideImage">
+          <img v-if="r.image" :src="recipeSmallImage(r.id!, r.image)" alt="" loading="lazy">
           <span>
             <strong>{{ r.name }}</strong>
             <small v-if="facts(r.id!)">{{ number(facts(r.id!)?.per_serving.calories) }} kcal</small>
@@ -149,7 +149,7 @@ import {
   mdiThumbUpOutline,
 } from "@mdi/js";
 import { format, startOfWeek } from "date-fns";
-import { useUserApi } from "~/composables/api";
+import { useStaticRoutes, useUserApi } from "~/composables/api";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
 import type { IdeaOut, StateOut } from "~/lib/api/types/household-planner";
 import { toPeople, type PlannerMember } from "~/lib/planner/people";
@@ -167,9 +167,8 @@ const nativeApi = useUserApi();
 const initialWeek = typeof route.query.week === "string" ? route.query.week : format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 const week = ref(initialWeek);
 const number = (v: number | null | undefined) => v == null ? "—" : new Intl.NumberFormat(i18n.locale.value, { maximumFractionDigits: 0 }).format(v);
-const imageFor = (recipeId: string) => `/api/media/recipes/${recipeId}/images/min-original.webp`;
+const { recipeSmallImage } = useStaticRoutes();
 const recipeLink = (slug: string) => `/g/${auth.user.value?.groupSlug}/r/${slug}`;
-function hideImage(event: Event) { (event.target as HTMLImageElement).style.visibility = "hidden"; }
 
 const people = computed(() => toPeople(members.value as PlannerMember[]));
 const person = (id: string) => people.value.find(m => m.id === id);

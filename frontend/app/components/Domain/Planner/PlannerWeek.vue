@@ -81,7 +81,7 @@
               :aria-label="`${dish.name}, ${dish.people.map(p => p.name).join(', ')}`"
               @click="openEditor(dish.recipeId)"
             >
-              <img v-if="dish.image" :src="dish.image" alt="" loading="lazy">
+              <img v-if="dish.image" :src="recipeSmallImage(dish.recipeId, dish.image)" alt="" loading="lazy">
               <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" size="16" /></span>
               <span class="pw-dish__name">{{ dish.name }}</span>
               <span class="pw-dish__people" aria-hidden="true">
@@ -151,7 +151,7 @@
         />
         <div class="pw-picklist">
           <button v-for="r in filteredRecipes" :key="r.recipe_id" type="button" class="pw-pick" @click="choose(r.recipe_id)">
-            <img v-if="r.image" :src="imageFor(r.recipe_id)" alt="" loading="lazy">
+            <img v-if="r.image" :src="recipeSmallImage(r.recipe_id, r.image)" alt="" loading="lazy">
             <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" /></span>
             <span class="pw-pick__body">
               <strong>{{ r.name }}</strong>
@@ -264,6 +264,7 @@ import {
   mdiSnowflake,
 } from "@mdi/js";
 import { addDays, format, parseISO, startOfWeek } from "date-fns";
+import { useStaticRoutes } from "~/composables/api";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
 import type { AllocationIn, RecipeFactsOut, StateOut } from "~/lib/api/types/household-planner";
 import { toPeople, type PlannerMember } from "~/lib/planner/people";
@@ -298,7 +299,8 @@ const recipes = computed(() => Object.values(data.value?.state.facts || {}).sort
 const number = (v: number | null | undefined) => v == null ? "—" : new Intl.NumberFormat(i18n.locale.value, { maximumFractionDigits: 0 }).format(v);
 const weekday = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { weekday: "short" }).format(parseISO(d));
 const longDay = (d: string) => new Intl.DateTimeFormat(i18n.locale.value, { weekday: "long", day: "numeric", month: "long" }).format(parseISO(d));
-const imageFor = (recipeId: string) => `/api/media/recipes/${recipeId}/images/min-original.webp`;
+// The server fills `image` from the live recipe; the key versions the URL so a new photo shows at once.
+const { recipeSmallImage } = useStaticRoutes();
 
 function factsFor(e: AllocationIn): RecipeFactsOut | undefined {
   if (e.batch_id) return data.value?.state.batches?.[e.batch_id]?.facts;
@@ -312,7 +314,7 @@ function dishesIn(day: string, meal: Meal) {
     const group = groups.get(e.recipe_id) || {
       recipeId: e.recipe_id,
       name: facts?.name || "?",
-      image: facts?.image ? imageFor(e.recipe_id) : null,
+      image: facts?.image || null,
       people: [],
       eaten: true,
       frozen: false,

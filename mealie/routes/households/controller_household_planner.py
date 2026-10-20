@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from mealie.core.config import get_app_settings
+from mealie.db.models.recipe.recipe import RecipeModel
 from mealie.db.models.users.users import User
 from mealie.repos.repository_household_planner import RepositoryHouseholdPlanner, RevisionConflict
 from mealie.routes._base import controller
@@ -19,6 +20,7 @@ from mealie.schema.household_planner.models import (
     PersonalOut,
     PersonalState,
     PlanIn,
+    PlannerState,
     PlanOut,
     ProfileIn,
     RecipeFactsIn,
@@ -55,7 +57,30 @@ class HouseholdPlannerController(BaseUserController):
             service.save()
         except RevisionConflict as exc:
             raise HTTPException(409, str(exc)) from exc
-        return StateOut(revision=service.revision, state=service.state)
+        return StateOut(revision=service.revision, state=self._live(service.state))
+
+    def _live(self, state: PlannerState) -> PlannerState:
+        """Name, slug and image always come from the recipe as it is now; the planner only keeps copies."""
+        out = state.model_copy(deep=True)
+        copies = [
+            *out.facts.values(),
+            *(b.facts for b in out.batches.values()),
+            *(f for p in out.plans.values() for f in p.recipe_snapshots.values()),
+            *out.ideas.values(),
+        ]
+        ids = {c.recipe_id for c in copies}
+        if not ids:
+            return out
+        rows = (
+            self.session.query(RecipeModel.id, RecipeModel.name, RecipeModel.slug, RecipeModel.image)
+            .filter(RecipeModel.group_id == self.group_id, RecipeModel.id.in_(ids))
+            .all()
+        )
+        live = {row.id: row for row in rows}
+        for copy in copies:
+            if row := live.get(copy.recipe_id):
+                copy.name, copy.slug, copy.image = row.name, row.slug, row.image
+        return out
 
     def _sync_shopping(self, plan: PlanOut | None, before: PlanOut | None) -> None:
         """Bring the linked native list in line with the week's fresh cooking (adds/removes the difference).
@@ -127,7 +152,7 @@ class HouseholdPlannerController(BaseUserController):
     @router.get("", response_model=StateOut)
     def get_state(self):
         s = self._service()
-        return StateOut(revision=s.revision, state=s.state)
+        return StateOut(revision=s.revision, state=self._live(s.state))
 
     @router.get("/members")
     def members(self):
@@ -252,11 +277,11 @@ class HouseholdPlannerController(BaseUserController):
 
     @router.get("/plans/{plan_id}/summary")
     def summary(self, plan_id: UUID):
-        s = self._service()
-        plan = s.state.plans.get(str(plan_id))
+        state = self._live(self._service().state)
+        plan = state.plans.get(str(plan_id))
         if not plan:
             raise HTTPException(404, "Plan not found")
-        return plan_summary(plan, s.state)
+        return plan_summary(plan, state)
 
     @router.put("/plans/{plan_id}/shopping", response_model=StateOut)
     def check_items(self, plan_id: UUID, data: list[str], revision: int = Query(ge=0)):
@@ -300,14 +325,14 @@ class HouseholdPlannerController(BaseUserController):
 
     @router.get("/stock")
     def stock(self):
-        s = self._service()
+        state = self._live(self._service().state)
         return [
             {
                 **b.model_dump(mode="json"),
-                "reserved": reserved(s.state, k),
-                "available": b.remaining - reserved(s.state, k),
+                "reserved": reserved(state, k),
+                "available": b.remaining - reserved(state, k),
             }
-            for k, b in s.state.batches.items()
+            for k, b in state.batches.items()
         ]
 
     @router.post("/movements", response_model=StateOut)

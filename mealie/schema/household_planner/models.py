@@ -134,6 +134,7 @@ class IdeaIn(Contract):
 class IdeaOut(IdeaIn):
     name: str
     slug: str
+    image: str | None = None
     proposed_by: UUID
     created_at: datetime
     likes: list[UUID] = Field(default_factory=list)

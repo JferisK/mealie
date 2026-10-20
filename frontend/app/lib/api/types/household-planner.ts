@@ -186,6 +186,7 @@ export interface IdeaOut {
   note?: string;
   name: string;
   slug: string;
+  image?: string | null;
   proposed_by: string;
   created_at: string;
   likes?: string[];
