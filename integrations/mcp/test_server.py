@@ -156,6 +156,23 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(server.USER_TOKEN.get(), "")
 
+    async def test_token_in_url_path_for_clients_without_headers(self):
+        async def echo(scope, receive, send):
+            await JSONResponse({"credential": server.USER_TOKEN.get(), "path": scope["path"]})(scope, receive, send)
+
+        a = "a" * 32
+        with patch.dict(
+            os.environ, {"MCP_USER_TOKENS": json.dumps({a: "mealie-a"}), "MCP_ALLOWED_HOSTS": "localhost:8080"}
+        ):
+            app = server.CredentialGateway(echo)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://localhost:8080"
+        ) as client:
+            response = await client.post(f"/mcp/{a}")
+            self.assertEqual(response.json(), {"credential": "mealie-a", "path": "/mcp"})
+            self.assertEqual((await client.post("/mcp/" + "b" * 32)).status_code, 401)
+            self.assertEqual((await client.post(f"/mcp/{a}", headers={"Host": "evil.invalid"})).status_code, 403)
+
     async def test_protocol_initialize_and_tools(self):
         with patch.dict(
             os.environ, {"MCP_USER_TOKENS": json.dumps({"a" * 32: "fixture"}), "MCP_ALLOWED_HOSTS": "localhost:8080"}
@@ -189,6 +206,13 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(
                     {"preview_week", "confirm_week", "consume_meal", "set_recipe_facts", "my_goal_status"} <= names
                 )
+                # Same protocol via URL token, without an Authorization header (ChatGPT connectors).
+                response = await client.post(
+                    "/mcp/" + "a" * 32,
+                    json={"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}},
+                    headers={"Authorization": ""},
+                )
+                self.assertIn("save_recipe", {t["name"] for t in response.json()["result"]["tools"]})
 
     async def test_confirmation_cannot_be_omitted(self):
         with self.assertRaisesRegex(ValueError, "confirmation"):

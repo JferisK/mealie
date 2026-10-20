@@ -452,6 +452,12 @@ class CredentialGateway:
         if host not in self.hosts or (origin and origin != f"https://{host}"):
             return await JSONResponse({"error": "Host or origin rejected"}, 403)(scope, receive, send)
         supplied = headers.get(b"authorization", b"").decode().removeprefix("Bearer ")
+        path = scope.get("path", "")
+        if not supplied and path.startswith("/mcp/"):
+            # ChatGPT connectors support only OAuth or no auth, so they carry the gateway token in the URL
+            # (/mcp/<token>). Approved by the operator; nginx does not log /mcp.
+            supplied, _, rest = path.removeprefix("/mcp/").partition("/")
+            scope = dict(scope, path="/mcp" + (f"/{rest}" if rest else ""), raw_path=b"/mcp")
         credential = next((v for k, v in self.tokens.items() if hmac.compare_digest(k, supplied)), None)
         if not credential:
             return await JSONResponse({"error": "Unauthorized"}, 401)(scope, receive, send)

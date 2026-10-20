@@ -25,6 +25,9 @@ Set `MCP_ALLOWED_HOSTS` to the exact public host (including port if nonstandard)
 Set `MCP_USER_TOKENS` to a private JSON map of random gateway bearer tokens (at least 32 characters)
 to personal Mealie API tokens. Each person gets their own pair. Rotate/revoke both as appropriate.
 The HTTP service never falls back to a shared `MEALIE_API_TOKEN`.
+Clients that cannot send headers (ChatGPT custom MCP servers support only OAuth or no auth) may use
+`https://<host>/mcp/<gateway-token>` with "No authentication". Give such a client its **own** gateway token so it can
+be revoked alone; anyone with that URL acts as the mapped Mealie user. Keep `/mcp` out of proxy access logs.
 
 ```json
 {"<random-gateway-token-person-1>": "<mealie-token-person-1>", "<random-gateway-token-person-2>": "<mealie-token-person-2>"}
