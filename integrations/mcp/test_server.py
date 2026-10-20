@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import server
+from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
 
@@ -25,6 +26,80 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             request.assert_not_awaited()
             await server.add_week_to_shopping_list("week", "list", True)
             request.assert_awaited_once_with("POST", "/api/households/planning/plans/week/shopping-list/list")
+
+    async def test_save_recipe_reuses_or_creates_foods_and_units(self):
+        calls = []
+
+        async def fake(method, path, data=None):
+            calls.append((method, path, data))
+            if path == "/api/foods?perPage=-1":
+                return {"items": [{"id": "f1", "name": "Hähnchenbrust"}]}
+            if path == "/api/units?perPage=-1":
+                return {"items": [{"id": "u1", "name": "Gramm", "abbreviation": "g"}]}
+            if method == "POST" and path in ("/api/foods", "/api/units"):
+                return {"id": "new", **data}
+            if method == "POST" and path == "/api/recipes":
+                return "curry"
+            return {"slug": "curry", "id": "r1"}
+
+        ingredient = server.IngredientInput
+        with patch.object(server, "request", fake):
+            result = await server.save_recipe(
+                "Curry",
+                4,
+                [
+                    ingredient(quantity=600, unit="G", food="hähnchenbrust"),
+                    ingredient(quantity=2, unit="EL", food="Curry"),
+                ],
+                ["Anbraten"],
+            )
+        self.assertEqual(result, {"slug": "curry", "id": "r1"})
+        self.assertIn(("POST", "/api/foods", {"name": "Curry"}), calls)
+        self.assertIn(("POST", "/api/units", {"name": "EL", "abbreviation": "EL", "useAbbreviation": True}), calls)
+        patch_body = next(d for m, p, d in calls if m == "PATCH")
+        self.assertEqual(
+            patch_body["recipeIngredient"][0],
+            {
+                "quantity": 600,
+                "note": "",
+                "food": {"id": "f1", "name": "Hähnchenbrust"},
+                "unit": {"id": "u1", "name": "Gramm", "abbreviation": "g"},
+            },
+        )
+        self.assertEqual(patch_body["recipeServings"], 4)
+
+    async def test_save_recipe_removes_shell_when_rejected(self):
+        async def fake(method, path, data=None):
+            if path.endswith("perPage=-1"):
+                return {"items": []}
+            if method == "PATCH":
+                raise ValueError("Mealie returned 422")
+            return "x" if path == "/api/recipes" else {"id": "n"}
+
+        with patch.object(server, "request", AsyncMock(side_effect=fake)) as request:
+            with self.assertRaisesRegex(ValueError, "422"):
+                await server.save_recipe("X", 1, [server.IngredientInput(quantity=1, food="Ei")], [])
+            request.assert_any_await("DELETE", "/api/recipes/x")
+
+    def test_ingredient_amount_is_required(self):
+        with self.assertRaises(ValidationError):
+            server.IngredientInput(quantity=0, food="Huhn")
+
+    async def test_recipe_image_from_chat_file_or_https_url(self):
+        with patch.object(server, "request", AsyncMock(return_value={})) as request:
+            file = server.ImageFile(download_url="https://files.example/img.png", file_id="file_1")
+            await server.set_recipe_image("curry", image=file)
+            request.assert_awaited_once_with(
+                "POST", "/api/recipes/curry/image", {"url": "https://files.example/img.png"}
+            )
+            with self.assertRaisesRegex(ValueError, "https"):
+                await server.set_recipe_image("curry", image_url="http://intern/x.png")
+
+    async def test_tool_metadata_for_chatgpt(self):
+        tools = {t.name: t for t in await server.mcp.list_tools()}
+        self.assertEqual(tools["set_recipe_image"].meta, {"openai/fileParams": ["image"]})
+        self.assertTrue(tools["get_recipe"].annotations.readOnlyHint)
+        self.assertIsNone(tools["save_recipe"].annotations)
 
     async def test_native_shopping_write_requires_confirmation(self):
         with patch.object(server, "request", AsyncMock(return_value={})) as request:

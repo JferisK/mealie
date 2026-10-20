@@ -1,6 +1,7 @@
 """Pure calculations: unknown values never become zero or inferred nutrition."""
 
 import re
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from statistics import mean
 
@@ -108,16 +109,29 @@ def plan_summary(plan: PlanIn, state: PlannerState) -> dict:
 _LEADING_AMOUNT = re.compile(r"^\s*\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\s+", re.IGNORECASE)
 
 
+@dataclass(frozen=True)
+class NativeLine:
+    """A native recipe ingredient. Structured lines carry food and amount per serving."""
+
+    text: str
+    food: str | None = None
+    food_id: str | None = None
+    unit_id: str | None = None
+    per_serving: float = 0
+
+
 def week_shopping_items(
-    plan: PlanIn, state: PlannerState, native_lines: dict[str, list[str]]
-) -> tuple[list[dict], list[str]]:
-    """Purchases for freshly cooked meals: summed grams per ingredient, plus native recipe lines without facts.
+    plan: PlanIn, state: PlannerState, native_lines: dict[str, list[NativeLine]]
+) -> tuple[list[dict], list[dict]]:
+    """Purchases for freshly cooked meals: summed grams per ingredient, plus native lines without facts.
 
     Raw and as-sold amounts are both bought as-is and merge; cooked amounts stay separate.
-    Lines without structured facts (spices, salt) cannot be scaled, so each distinct text is listed once.
+    Uncovered structured lines (e.g. 2 EL Currypulver) are scaled to the planned servings; the native list
+    merges equal foods. Unstructured lines (old free text) cannot be scaled, so each text is listed once.
     """
+    summary = plan_summary(plan, state)
     items: dict[str, dict] = {}
-    for s in plan_summary(plan, state)["shopping"]:
+    for s in summary["shopping"]:
         cooked = s["state"] == "cooked"
         name = s["name"].strip() + (" (gekocht)" if cooked else "")
         item = items.setdefault(
@@ -126,16 +140,31 @@ def week_shopping_items(
         item["grams"] = round(item["grams"] + s["grams"], 1)
         item["recipe_ids"] += [r for r in s["recipe_ids"] if r not in item["recipe_ids"]]
 
-    extras: dict[str, str] = {}
+    servings = {c["recipe_id"]: c["servings"] for c in summary["cooking"]}
+    extras: list[dict] = []
+    texts: set[str] = set()
     snapshots = plan.recipe_snapshots if isinstance(plan, PlanOut) else {}
     for recipe_id in dict.fromkeys(str(e.recipe_id) for e in plan.entries if not e.batch_id):
         facts = snapshots.get(recipe_id, state.facts.get(recipe_id))
         covered = {i.name.strip().casefold() for i in facts.ingredients} if facts else set()
         for line in native_lines.get(recipe_id, []):
-            text = line.strip()
-            if text and _LEADING_AMOUNT.sub("", text).casefold() not in covered:
-                extras.setdefault(text.casefold(), text)
-    return list(items.values()), list(extras.values())
+            text = line.text.strip()
+            name = (line.food or _LEADING_AMOUNT.sub("", text)).strip().casefold()
+            if not (text or line.food) or name in covered:
+                continue
+            if line.food_id and line.per_serving > 0:
+                extras.append(
+                    {
+                        "food_id": line.food_id,
+                        "unit_id": line.unit_id,
+                        "quantity": round(line.per_serving * servings.get(recipe_id, 0), 2),
+                        "recipe_id": recipe_id,
+                    }
+                )
+            elif text.casefold() not in texts:
+                texts.add(text.casefold())
+                extras.append({"note": text})
+    return list(items.values()), extras
 
 
 def monthly_proposal(state: PersonalState, today: date | None = None) -> GoalRevision:

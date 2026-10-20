@@ -10,6 +10,8 @@ from urllib.parse import quote
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ToolAnnotations
+from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
 BASE = os.environ.get("MEALIE_URL", "http://mealie:9000").rstrip("/")
@@ -55,13 +57,16 @@ def path_part(value: str) -> str:
     return quote(value, safe="")
 
 
-@mcp.tool()
+READ = ToolAnnotations(readOnlyHint=True)
+
+
+@mcp.tool(annotations=READ)
 async def list_recipes(page: int = 1, per_page: int = 25) -> dict:
     """List recipes. Use pagination; maximum 100 per request."""
     return await request("GET", f"/api/recipes?page={max(1, page)}&perPage={min(100, max(1, per_page))}")
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def get_recipe(slug: str) -> dict:
     """Read a recipe before editing. Preserve fields the user did not ask to change."""
     return await request("GET", f"/api/recipes/{path_part(slug)}")
@@ -69,15 +74,113 @@ async def get_recipe(slug: str) -> dict:
 
 @mcp.tool()
 async def create_recipe(name: str) -> str:
-    """Create a native recipe shell; use patch_recipe for ingredients and instructions."""
+    """Create an empty native recipe shell. For complete recipes use save_recipe instead."""
     return await request("POST", "/api/recipes", {"name": name})
+
+
+class IngredientInput(BaseModel):
+    quantity: float = Field(gt=0, description="Amount as a number, e.g. 600 or 0.5. Never put it in the note.")
+    unit: str | None = Field(None, description="Unit such as g, ml, EL, TL, Stück, Prise; omit for countable foods")
+    food: str = Field(min_length=1, description="Food name only, singular, e.g. 'Hähnchenbrust', 'Zwiebel'")
+    note: str = Field("", description="Preparation only, e.g. 'fein gewürfelt'. No numbers or amounts.")
+
+
+async def _named(kind: str, name: str, cache: dict[str, dict]) -> dict:
+    """Find a food/unit by name or abbreviation (case-insensitive), creating it when missing."""
+    key = name.strip().casefold()
+    if key not in cache:
+        payload = {"name": name.strip()}
+        if kind == "units" and len(name.strip()) <= 4:
+            payload |= {"abbreviation": name.strip(), "useAbbreviation": True}
+        cache[key] = await request("POST", f"/api/{kind}", payload)
+    return cache[key]
+
+
+async def _index(kind: str) -> dict[str, dict]:
+    items = (await request("GET", f"/api/{kind}?perPage=-1"))["items"]
+    index: dict[str, dict] = {}
+    for item in items:
+        for field in ("name", "pluralName", "abbreviation", "pluralAbbreviation"):
+            if item.get(field):
+                index.setdefault(item[field].strip().casefold(), item)
+    return index
+
+
+@mcp.tool()
+async def save_recipe(
+    name: str,
+    servings: float,
+    ingredients: list[IngredientInput],
+    instructions: list[str],
+    description: str = "",
+    prep_minutes: int | None = None,
+    cook_minutes: int | None = None,
+) -> dict:
+    """Create a complete native recipe with structured ingredients (quantity + unit + food).
+
+    Amounts must be in `quantity`/`unit`, never in `food` or `note`; Mealie rejects amounts in text.
+    Salt/pepper "to taste" still needs an amount, e.g. 1 Prise. Ingredient amounts are for all `servings`.
+    Returns slug and id; then call set_recipe_facts and set_recipe_image.
+    """
+    if servings <= 0:
+        raise ValueError("servings must be positive")
+    foods, units = await _index("foods"), await _index("units")
+    lines = []
+    for i in ingredients:
+        line: dict = {"quantity": i.quantity, "note": i.note.strip(), "food": await _named("foods", i.food, foods)}
+        if i.unit and i.unit.strip():
+            line["unit"] = await _named("units", i.unit, units)
+        lines.append(line)
+    slug = await request("POST", "/api/recipes", {"name": name})
+    changes: dict = {
+        "recipeServings": servings,
+        "recipeYieldQuantity": servings,
+        "recipeYield": "Portionen",
+        "description": description,
+        "recipeIngredient": lines,
+        "recipeInstructions": [{"text": step} for step in instructions if step.strip()],
+    }
+    if prep_minutes is not None:
+        changes["prepTime"] = f"{prep_minutes} min"
+    if cook_minutes is not None:
+        changes["performTime"] = f"{cook_minutes} min"
+    if prep_minutes is not None or cook_minutes is not None:
+        changes["totalTime"] = f"{(prep_minutes or 0) + (cook_minutes or 0)} min"
+    try:
+        recipe = await request("PATCH", f"/api/recipes/{path_part(slug)}", changes)
+    except ValueError:
+        # Do not leave an empty shell behind when the ingredients are rejected.
+        await request("DELETE", f"/api/recipes/{path_part(slug)}")
+        raise
+    return {"slug": recipe["slug"], "id": recipe["id"]}
+
+
+class ImageFile(BaseModel):
+    """A file passed by ChatGPT (openai/fileParams)."""
+
+    download_url: str
+    file_id: str
+    mime_type: str | None = None
+    file_name: str | None = None
+
+
+@mcp.tool(meta={"openai/fileParams": ["image"]})
+async def set_recipe_image(slug: str, image: ImageFile | None = None, image_url: str | None = None) -> dict:
+    """Set the recipe photo from an image file in the chat (e.g. one you just generated) or a public https URL.
+
+    Mealie downloads and validates the image itself.
+    """
+    url = image.download_url if image else image_url
+    if not url or not url.startswith("https://"):
+        raise ValueError("Provide the generated image file or a public https image URL")
+    return await request("POST", f"/api/recipes/{path_part(slug)}/image", {"url": url})
 
 
 @mcp.tool()
 async def patch_recipe(slug: str, changes: dict) -> dict:
     """
-    Patch native Mealie fields such as recipeIngredient, recipeInstructions, description and tags. Read the
-    recipe first.
+    Patch native Mealie fields such as recipeInstructions, description and tags. Read the recipe first.
+    recipeIngredient entries need quantity and food objects; prefer save_recipe for new recipes.
     """
     return await request("PATCH", f"/api/recipes/{path_part(slug)}", changes)
 
@@ -91,13 +194,13 @@ async def delete_recipe(slug: str, user_confirmed: bool = False) -> dict:
     return {"deleted": slug}
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def planner_state() -> dict:
     """Read facts, confirmed plans, stock and current revision. Contains no raw health data."""
     return await request("GET", "/api/households/planning")
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def week_ideas(week_start: str) -> list:
     """List the household's dish ideas for a Monday-start week (YYYY-MM-DD), most liked first."""
     state = await request("GET", "/api/households/planning")
@@ -121,7 +224,7 @@ async def like_idea(idea_id: str, revision: int) -> dict:
     return await request("POST", f"/api/households/planning/ideas/{path_part(idea_id)}/like?revision={revision}", {})
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def household_members() -> list:
     """Resolve member IDs and shared meal preferences for personal portions; no weight or medical history."""
     return await request("GET", "/api/households/planning/members")
@@ -144,6 +247,7 @@ async def set_recipe_facts(
     Save ingredient-based nutrition. Each ingredient: name, grams, state(raw/cooked/as_sold),
     per_100g(calories,protein,carbohydrate,fat,fiber), source. Omit unknown nutrient values, never fabricate
     sources. Amounts describe the complete recipe. Use explicit sourced dietary evidence.
+    Use the same ingredient names as the recipe's foods so the weekly shopping list can match them.
     """
     return await request(
         "PUT",
@@ -162,7 +266,7 @@ async def set_recipe_facts(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def preview_week(plan: dict) -> dict:
     """
     Validate a draft. plan: stable UUID id, Monday start YYYY-MM-DD, entries
@@ -186,25 +290,25 @@ async def confirm_week(plan: dict, revision: int, user_confirmed: bool = False) 
     return await request("PUT", f"/api/households/planning/weeks/{start}?revision={revision}", plan)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def week_summary(plan_id: str) -> dict:
     """Get personal daily totals, cooking quantities and ingredient demand (not a separate checklist)."""
     return await request("GET", f"/api/households/planning/plans/{path_part(plan_id)}/summary")
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def shopping_lists() -> dict:
     """Read native Mealie shopping lists. Use these for all shopping, not planner checked_items."""
     return await request("GET", "/api/households/shopping/lists?perPage=-1")
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def shopping_list(list_id: str) -> dict:
     """Read a native shopping list, including its item IDs and checked states."""
     return await request("GET", f"/api/households/shopping/lists/{path_part(list_id)}")
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def preview_week_shopping(plan_id: str) -> dict:
     """Preview the week's purchases for fresh cooking: grams summed per ingredient across all dishes.
 
@@ -258,7 +362,7 @@ async def cancel_week(plan_id: str, revision: int) -> dict:
     return await request("DELETE", f"/api/households/planning/plans/{path_part(plan_id)}?revision={revision}")
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def frozen_stock() -> list:
     """Read physical, reserved and available stock and locations."""
     return await request("GET", "/api/households/planning/stock")
@@ -296,7 +400,7 @@ async def consume_meal(plan_id: str, entry_id: str, revision: int) -> dict:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ)
 async def my_goal_status() -> dict:
     """Read own current targets and review status; raw health observations are intentionally not returned."""
     data = await request("GET", "/api/households/planning/me")

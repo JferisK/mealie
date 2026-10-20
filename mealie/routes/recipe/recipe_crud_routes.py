@@ -139,6 +139,10 @@ class RecipeController(BaseRecipeController):
                     message=f"{ex}. PUT replaces the entire recipe; use PATCH to update only some fields."
                 ),
             )
+        elif thrownType == exceptions.InvalidIngredients:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=ErrorResponse.respond(message=str(ex))
+            )
         elif thrownType == exceptions.SlugError:
             self.logger.error("Failed to generate a valid slug from recipe name")
             raise HTTPException(

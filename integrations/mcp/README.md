@@ -40,7 +40,10 @@ The verified path is the MCP protocol and stdio-capable clients; mobile connecti
 ## Assistant workflow
 
 1. Read household members/preferences, planner state and frozen stock. Ask about unresolved preferences.
-2. Create native recipes with `create_recipe` then `patch_recipe`, or reuse existing recipes.
+2. Create native recipes with `save_recipe` (structured ingredients: quantity + unit + food, preparation in `note`),
+   or reuse existing recipes. With `STRICT_INGREDIENTS=true` Mealie rejects ingredients without quantity/food or with
+   amounts in the note. Attach a photo with `set_recipe_image` (ChatGPT passes a generated image via
+   `openai/fileParams`; otherwise a public https URL).
 3. Enrich with `set_recipe_facts`. Ingredient grams describe the whole recipe; `servings` divides the total.
    Record exact product/database references and preparation state. Unknown nutrients remain omitted/null.
    Do not invent labels, allergen evidence, calorie values or freezer instructions.

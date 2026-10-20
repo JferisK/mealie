@@ -176,6 +176,11 @@ class AppSettings(AppLoggingSettings):
     ALLOW_SIGNUP: bool = False
     ALLOW_PASSWORD_LOGIN: bool = True
 
+    STRICT_INGREDIENTS: bool = False
+    """Require every recipe ingredient to have a quantity and a food when ingredients are saved.
+    Amounts written into the note (e.g. "600 g chicken") are rejected, so shopping lists can scale and sum them.
+    Imports may still create unparsed recipes; they must be parsed before their ingredients can be saved."""
+
     ALLOWED_IFRAME_HOSTS: str = ""
     """Comma-separated list of additional hostnames allowed as `<iframe>` sources in user content
     (recipe instructions, notes, descriptions). Extends `DEFAULT_ALLOWED_IFRAME_HOSTS`. Subdomains of

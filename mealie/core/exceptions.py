@@ -47,6 +47,15 @@ class MissingRequiredData(Exception):
     pass
 
 
+class InvalidIngredients(Exception):
+    """
+    This exception is raised when STRICT_INGREDIENTS is enabled and an ingredient lacks a
+    structured amount or food, or keeps its amount in the free text.
+    """
+
+    pass
+
+
 class NoEntryFound(Exception):
     """
     This exception is raised when a user tries to access a resource that does not exist.

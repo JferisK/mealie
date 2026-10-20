@@ -222,6 +222,7 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from "vue";
 import { invoke, until } from "@vueuse/core";
+import { alert } from "~/composables/use-toast";
 import type { RouteLocationNormalized } from "vue-router";
 import RecipeIngredients from "../RecipeIngredients.vue";
 import RecipePageEditorToolbar from "./RecipePageParts/RecipePageEditorToolbar.vue";
@@ -429,6 +430,11 @@ watch(isParsing, () => {
 
 async function saveRecipe() {
   const { data, error } = await api.recipes.updateOne(recipe.value.slug, recipe.value);
+  if (error) {
+    // Fork: STRICT_INGREDIENTS rejections explain which ingredient needs a structured amount.
+    const detail = (error as { response?: { data?: { detail?: { message?: string } } } }).response?.data?.detail;
+    if (detail?.message) alert.error(detail.message);
+  }
   if (!error) {
     if (data?.slug && data.slug !== route.params.slug) {
       isNavigatingAfterRename.value = true;

@@ -37,6 +37,7 @@ from mealie.schema.user.user import PrivateUser, UserRatingCreate
 from mealie.services._base_service import BaseService
 from mealie.services.household_services.household_service import HouseholdService
 from mealie.services.parser_services._base import DataMatcher
+from mealie.services.recipe.ingredient_rules import require_structured_ingredients
 from mealie.services.recipe.recipe_data_service import RecipeDataService
 
 from .template_service import TemplateService
@@ -632,6 +633,8 @@ class RecipeService(RecipeServiceBase):
         # recipe still answers 404 or 403 regardless of what the body contains.
         if not update_data.name:
             raise exceptions.MissingRequiredData("Recipe name is required")
+        if self.settings.STRICT_INGREDIENTS:
+            require_structured_ingredients(update_data.recipe_ingredient, recipe.recipe_ingredient)
 
         update_data = self._preserve_omitted_image(recipe, update_data)
         update_data = self._remove_non_existent_ingredient_references(update_data)
@@ -665,6 +668,8 @@ class RecipeService(RecipeServiceBase):
 
     def patch_one(self, slug_or_id: str | UUID, patch_data: Recipe) -> Recipe:
         recipe: Recipe = self._pre_update_check(slug_or_id, patch_data)
+        if self.settings.STRICT_INGREDIENTS and "recipe_ingredient" in patch_data.model_fields_set:
+            require_structured_ingredients(patch_data.recipe_ingredient, recipe.recipe_ingredient)
 
         new_data = self.group_recipes.patch(recipe.slug, patch_data.model_dump(exclude_unset=True))
 

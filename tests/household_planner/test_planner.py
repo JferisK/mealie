@@ -25,7 +25,13 @@ from mealie.schema.household_planner.models import (
     ProfileIn,
     RecipeFactsIn,
 )
-from mealie.services.household_planner.calculations import monthly_proposal, nutrition, reserved, week_shopping_items
+from mealie.services.household_planner.calculations import (
+    NativeLine,
+    monthly_proposal,
+    nutrition,
+    reserved,
+    week_shopping_items,
+)
 from mealie.services.household_planner.service import PlannerService
 
 MONDAY = date(2026, 10, 12)
@@ -388,14 +394,31 @@ def test_week_shopping_frozen_portions_need_no_purchase(service):
             )
         ],
     )
-    assert week_shopping_items(plan, service.state, {str(f.recipe_id): ["200 g Rice", "Salz"]}) == ([], [])
+    native = {str(f.recipe_id): [NativeLine("200 g Rice"), NativeLine("Salz")]}
+    assert week_shopping_items(plan, service.state, native) == ([], [])
 
 
-def test_week_shopping_adds_uncovered_native_lines_once(service):
+def test_week_shopping_adds_uncovered_free_text_once(service):
     plan, recipes = chicken_week(service)
     native = {
-        str(recipes["Curry"]): ["600 g Hähnchenbrust", "240 g Basmatireis", "2 EL Currypulver", "Salz, Pfeffer"],
-        str(recipes["Ofen"]): ["400 g Hähnchenbrust", "1 TL Paprikapulver", "Salz, Pfeffer", " "],
+        str(recipes["Curry"]): [
+            NativeLine(t) for t in ["600 g Hähnchenbrust", "240 g Basmatireis", "2 EL Curry", "Salz"]
+        ],
+        str(recipes["Ofen"]): [NativeLine(t) for t in ["400 g Hähnchenbrust", "1 TL Paprikapulver", "Salz", " "]],
     }
     _, extras = week_shopping_items(plan, service.state, native)
-    assert extras == ["2 EL Currypulver", "Salz, Pfeffer", "1 TL Paprikapulver"]
+    assert extras == [{"note": "2 EL Curry"}, {"note": "Salz"}, {"note": "1 TL Paprikapulver"}]
+
+
+def test_week_shopping_scales_uncovered_structured_lines(service):
+    plan, recipes = chicken_week(service, curry_servings=6)
+    curry = str(recipes["Curry"])
+    native = {
+        # structured display uses the unit name, coverage must come from the food name
+        curry: [
+            NativeLine("600 Gramm Hähnchenbrust", food="Hähnchenbrust", food_id="f1", unit_id="g", per_serving=150),
+            NativeLine("2 Esslöffel Currypulver", food="Currypulver", food_id="f2", unit_id="el", per_serving=0.5),
+        ]
+    }
+    _, extras = week_shopping_items(plan, service.state, native)
+    assert extras == [{"food_id": "f2", "unit_id": "el", "quantity": 3.0, "recipe_id": curry}]

@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
+from mealie.core.config import get_app_settings
 from mealie.db.models.users.users import User
 from mealie.repos.repository_household_planner import RepositoryHouseholdPlanner, RevisionConflict
 from mealie.routes._base import controller
@@ -28,6 +29,7 @@ from mealie.schema.household_planner.models import (
 )
 from mealie.schema.recipe.recipe_ingredient import IngredientUnit, SaveIngredientUnit, StandardizedUnitType
 from mealie.services.household_planner.calculations import (
+    NativeLine,
     monthly_proposal,
     plan_summary,
     reserved,
@@ -35,6 +37,7 @@ from mealie.services.household_planner.calculations import (
 )
 from mealie.services.household_planner.service import PlannerService
 from mealie.services.household_services.shopping_lists import ShoppingListService
+from mealie.services.recipe.ingredient_rules import ingredient_problems
 
 router = APIRouter(prefix="/households/planning", tags=["Households: Planning"])
 
@@ -118,6 +121,8 @@ class HouseholdPlannerController(BaseUserController):
         recipe = self.repos.recipes.get_one(data.recipe_id, key="id")
         if not recipe or recipe.household_id != self.household_id:
             raise HTTPException(404, "Recipe not found in this household")
+        if get_app_settings().STRICT_INGREDIENTS and (problems := ingredient_problems(recipe.recipe_ingredient)):
+            raise HTTPException(422, "Rezept zuerst mit Mengen und Lebensmitteln parsen: " + "; ".join(problems))
         if (data.gluten_free == "yes" or data.lactose_free == "yes") and not data.evidence.strip():
             raise HTTPException(422, "Verified dietary suitability requires evidence")
         s.facts(data, recipe.name, recipe.slug, recipe.image)
@@ -252,12 +257,21 @@ class HouseholdPlannerController(BaseUserController):
         shopping_list = self.repos.group_shopping_lists.get_one(list_id)
         if not shopping_list:
             raise HTTPException(404, "Shopping list not found")
-        native: dict[str, list[str]] = {}
+        native: dict[str, list[NativeLine]] = {}
         for recipe_id in {str(e.recipe_id) for e in plan.entries if not e.batch_id}:
             recipe = self.repos.recipes.get_one(UUID(recipe_id), key="id")
             if recipe:
+                yield_ = recipe.recipe_servings or 0
                 native[recipe_id] = [
-                    i.display or i.note or "" for i in recipe.recipe_ingredient if not i.referenced_recipe
+                    NativeLine(
+                        text=i.display or i.note or "",
+                        food=i.food.name if i.food else None,
+                        food_id=str(i.food.id) if i.food and getattr(i.food, "id", None) else None,
+                        unit_id=str(i.unit.id) if i.unit and getattr(i.unit, "id", None) else None,
+                        per_serving=(i.quantity or 0) / yield_ if yield_ > 0 else 0,
+                    )
+                    for i in recipe.recipe_ingredient
+                    if not i.referenced_recipe
                 ]
         try:
             items, extras = week_shopping_items(plan, s.state, native)
@@ -276,7 +290,19 @@ class HouseholdPlannerController(BaseUserController):
                 ],
             )
             for item in items
-        ] + [ShoppingListItemCreate(shopping_list_id=list_id, note=text, quantity=0) for text in extras]
+        ] + [
+            ShoppingListItemCreate(
+                shopping_list_id=list_id,
+                note=extra.get("note", ""),
+                quantity=extra.get("quantity", 0),
+                food_id=UUID(extra["food_id"]) if "food_id" in extra else None,
+                unit_id=UUID(extra["unit_id"]) if extra.get("unit_id") else None,
+                recipe_references=[ShoppingListItemRecipeRefCreate(recipe_id=UUID(extra["recipe_id"]))]
+                if "recipe_id" in extra
+                else [],
+            )
+            for extra in extras
+        ]
         return service.bulk_create_items(create)
 
     @router.post("/batches", response_model=StateOut)
