@@ -148,6 +148,65 @@
       :description="$t('shopping-list.you-are-offline-description')"
     />
 
+    <!-- Recipe References (fork: dishes with portions; +/- changes one portion) -->
+    <section
+      v-if="shoppingList.recipeReferences && shoppingList.recipeReferences.length > 0"
+      class="mb-4"
+    >
+      <div>
+        <span>
+          <v-icon start class="mb-1">
+            {{ $globals.icons.silverwareForkKnife }}
+          </v-icon>
+        </span>
+        {{ $t('shopping-list.linked-recipes-count', shoppingList.recipeReferences.length) }}
+      </div>
+      <v-divider />
+      <RecipeList
+        :recipes="recipeList"
+        :disabled="isOffline"
+      >
+        <template
+          v-for="recipe in recipeList"
+          #[`actions-${recipe.id}`]
+          :key="'item-actions-decrease' + recipe.id"
+        >
+          <v-list-item-action>
+            <v-btn
+              v-if="recipe"
+              icon
+              flat
+              class="bg-transparent"
+              :disabled="isOffline"
+              :aria-label="$t('shopping-list.remove-portion')"
+              @click.prevent="removeRecipeReferenceToList(recipe.id!, recipe.recipeServings)"
+            >
+              <v-icon color="grey-lighten-1">
+                {{ $globals.icons.minus }}
+              </v-icon>
+            </v-btn>
+          </v-list-item-action>
+          <div class="pl-3 text-no-wrap">
+            {{ portionLabel(recipe.id!, recipe.recipeServings) }}
+          </div>
+          <v-list-item-action>
+            <v-btn
+              icon
+              :disabled="isOffline"
+              flat
+              class="bg-transparent"
+              :aria-label="$t('shopping-list.add-portion')"
+              @click.prevent="addRecipeReferenceToList(recipe.id!, recipe.recipeServings)"
+            >
+              <v-icon color="grey-lighten-1">
+                {{ $globals.icons.createAlt }}
+              </v-icon>
+            </v-btn>
+          </v-list-item-action>
+        </template>
+      </RecipeList>
+    </section>
+
     <!-- Viewer -->
     <section
       v-if="!edit"
@@ -286,67 +345,6 @@
       </v-expansion-panels>
     </section>
 
-    <!-- Recipe References -->
-    <v-lazy
-      v-if="shoppingList.recipeReferences && shoppingList.recipeReferences.length > 0"
-      class="mt-6"
-    >
-      <section>
-        <div>
-          <span>
-            <v-icon start class="mb-1">
-              {{ $globals.icons.silverwareForkKnife }}
-            </v-icon>
-          </span>
-          {{ $t('shopping-list.linked-recipes-count', shoppingList.recipeReferences
-            ? shoppingList.recipeReferences.length
-            : 0) }}
-        </div>
-        <v-divider />
-        <RecipeList
-          :recipes="recipeList"
-          show-description
-          :disabled="isOffline"
-        >
-          <template
-            v-for="(recipe, index) in recipeList"
-            #[`actions-${recipe.id}`]
-            :key="'item-actions-decrease' + recipe.id"
-          >
-            <v-list-item-action>
-              <v-btn
-                v-if="recipe"
-                icon
-                flat
-                class="bg-transparent"
-                :disabled="isOffline"
-                @click.prevent="removeRecipeReferenceToList(recipe.id!)"
-              >
-                <v-icon color="grey-lighten-1">
-                  {{ $globals.icons.minus }}
-                </v-icon>
-              </v-btn>
-            </v-list-item-action>
-            <div class="pl-3">
-              {{ shoppingList.recipeReferences[index].recipeQuantity }}
-            </div>
-            <v-list-item-action>
-              <v-btn
-                icon
-                :disabled="isOffline"
-                flat
-                class="bg-transparent"
-                @click.prevent="addRecipeReferenceToList(recipe.id!)"
-              >
-                <v-icon color="grey-lighten-1">
-                  {{ $globals.icons.createAlt }}
-                </v-icon>
-              </v-btn>
-            </v-list-item-action>
-          </template>
-        </RecipeList>
-      </section>
-    </v-lazy>
     <WakelockSwitch />
   </v-container>
 </template>
@@ -359,6 +357,7 @@ import ShoppingListAddItemForm from "~/components/Domain/ShoppingList/ShoppingLi
 import ShoppingListItem from "~/components/Domain/ShoppingList/ShoppingListItem.vue";
 import ShoppingListItemEditor from "~/components/Domain/ShoppingList/ShoppingListItemEditor.vue";
 import { useShoppingListPage } from "~/composables/shopping-list-page/use-shopping-list-page";
+import { portionsFor } from "~/composables/shopping-list-page/sub-composables/use-shopping-list-recipes";
 import { useLabelStore, useUnitStore, useFoodStore } from "~/composables/store";
 import { alert } from "~/composables/use-toast";
 import type { ShoppingListItemOut } from "~/lib/api/types/household";
@@ -432,6 +431,12 @@ const {
   removeRecipeReferenceToList,
   addRecipeReferenceToList,
 } = shoppingListPage;
+
+function portionLabel(recipeId: string, servings?: number | null) {
+  const ref = shoppingList.value?.recipeReferences?.find(r => r.recipeId === recipeId);
+  const portions = portionsFor(ref?.recipeQuantity, servings);
+  return portions === null ? `${ref?.recipeQuantity ?? 0}×` : i18n.t("shopping-list.portions", { count: portions }, portions);
+}
 </script>
 
 <style>

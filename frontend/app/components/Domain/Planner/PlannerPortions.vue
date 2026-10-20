@@ -1,6 +1,6 @@
 <template>
   <div class="pp">
-    <PlannerShoppingDialog v-if="currentPlan" v-model="shoppingDialog" :plan-id="currentPlan.id" @added="shoppingDone = true" />
+    <PlannerShoppingDialog v-if="currentPlan && data" v-model="shoppingDialog" :plan-id="currentPlan.id!" :revision="data.revision" @added="linked" />
     <v-alert
       v-if="error"
       type="error"
@@ -30,12 +30,17 @@
         <div class="pp-toolbar">
           <PlannerWeekNav v-model="week" :disabled="busy" />
           <div class="pp-toolbar__actions">
-            <v-btn color="primary" variant="flat" :prepend-icon="mdiCartOutline" :disabled="busy || !currentPlan || !summary?.cooking.length" @click="shoppingDialog = true">
-              {{ t('createShopping') }}
+            <v-btn v-if="currentPlan?.shopping_list_id" color="primary" variant="flat" :prepend-icon="mdiCartOutline" :to="`/shopping-lists/${currentPlan.shopping_list_id}`">
+              {{ t('openShopping') }}
             </v-btn>
-            <v-btn variant="text" color="primary" to="/shopping-lists">
-              {{ t('toShopping') }}
-            </v-btn>
+            <template v-else>
+              <v-btn color="primary" variant="flat" :prepend-icon="mdiCartOutline" :disabled="busy || !currentPlan || !summary?.cooking.length" @click="shoppingDialog = true">
+                {{ t('createShopping') }}
+              </v-btn>
+              <v-btn variant="text" color="primary" to="/shopping-lists">
+                {{ t('toShopping') }}
+              </v-btn>
+            </template>
           </div>
         </div>
         <ol v-if="summary?.cooking.length" class="pp-list">
@@ -228,7 +233,7 @@
 <script setup lang="ts">
 import { mdiSnowflake, mdiCartOutline, mdiMagnify, mdiPlus, mdiPotSteamOutline } from "@mdi/js";
 import { format, startOfWeek, parseISO } from "date-fns";
-import type { BatchIn, GoalsIn, ProfileIn } from "~/lib/api/types/household-planner";
+import type { BatchIn, GoalsIn, ProfileIn, StateOut } from "~/lib/api/types/household-planner";
 import { useHouseholdPlanner, type PlannerSummary } from "~/composables/use-household-planner";
 import PlannerPersonalPanel from "~/components/Domain/Planner/PlannerPersonalPanel.vue";
 import PlannerSheet from "~/components/Domain/Planner/PlannerSheet.vue";
@@ -245,6 +250,10 @@ const pageProps = defineProps<{ section?: "ideas" | "week" | "cook" | "freezer" 
 const tab = computed(() => pageProps.section ?? (["freezer", "goals"].includes(String(route.query.section)) ? String(route.query.section) : "cook"));
 const shoppingDialog = ref(false);
 const shoppingDone = ref(false);
+function linked(state: StateOut) {
+  data.value = state;
+  shoppingDone.value = true;
+}
 const stockSearch = ref("");
 const showEmpty = ref(false);
 const withdrawBatch = ref<string | null>(null);

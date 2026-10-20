@@ -323,16 +323,19 @@ async def preview_week_shopping(plan_id: str) -> dict:
 
 
 @mcp.tool()
-async def add_week_to_shopping_list(plan_id: str, list_id: str, user_confirmed: bool = False) -> dict:
-    """Add the reviewed week preview to a native list. Do not retry blindly: additions are not idempotent.
+async def add_week_to_shopping_list(plan_id: str, list_id: str, revision: int, user_confirmed: bool = False) -> dict:
+    """Link the reviewed week to a native list: its dishes appear there with portions.
 
-    Merges with unchecked items of the same name and a compatible unit.
+    Afterwards the list follows changes of the week (portions, dishes, cancelling) automatically; do not call
+    this again for the same week. Returns the planner revision.
     """
     if not user_confirmed:
         raise ValueError("User confirmation required")
-    return await request(
-        "POST", f"/api/households/planning/plans/{path_part(plan_id)}/shopping-list/{path_part(list_id)}"
+    data = await request(
+        "POST",
+        f"/api/households/planning/plans/{path_part(plan_id)}/shopping-list/{path_part(list_id)}?revision={revision}",
     )
+    return {"revision": data["revision"], "linked_list": list_id}
 
 
 @mcp.tool()

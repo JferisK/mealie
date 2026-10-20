@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { ref } from "vue";
 import type { ShoppingListOut } from "~/lib/api/types/household";
-import { useShoppingListRecipes } from "../use-shopping-list-recipes";
+import { portionsFor, useShoppingListRecipes } from "../use-shopping-list-recipes";
 import { MOCK_SHOPPING_LIST } from "./mocks";
 
 const addRecipes = vi.fn().mockResolvedValue({ data: true });
@@ -70,5 +70,23 @@ describe("use-shopping-list-recipes", () => {
       await recipeUpdater("recipe_id");
       expect(mock).not.toHaveBeenCalled();
     });
+  });
+
+  test("changes by one portion when the recipe has a yield", async () => {
+    addRecipes.mockClear();
+    removeRecipe.mockClear();
+    await addRecipeReferenceToList("recipe_id", 4);
+    expect(addRecipes).toHaveBeenCalledWith(list.id, [{ recipeId: "recipe_id", recipeIncrementQuantity: 0.25 }]);
+    await removeRecipeReferenceToList("recipe_id", 4);
+    expect(removeRecipe).toHaveBeenCalledWith(list.id, "recipe_id", 0.25);
+    await addRecipeReferenceToList("recipe_id", null);
+    expect(addRecipes).toHaveBeenLastCalledWith(list.id, [{ recipeId: "recipe_id", recipeIncrementQuantity: 1 }]);
+  });
+
+  test("portionsFor converts recipe multiples to portions", () => {
+    expect(portionsFor(3.25, 4)).toBe(13);
+    expect(portionsFor(0.333333, 3)).toBe(1);
+    expect(portionsFor(2, 0)).toBeNull();
+    expect(portionsFor(2, null)).toBeNull();
   });
 });

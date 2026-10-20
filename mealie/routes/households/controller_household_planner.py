@@ -8,11 +8,7 @@ from mealie.db.models.users.users import User
 from mealie.repos.repository_household_planner import RepositoryHouseholdPlanner, RevisionConflict
 from mealie.routes._base import controller
 from mealie.routes._base.base_controllers import BaseUserController
-from mealie.schema.household.group_shopping_list import (
-    ShoppingListItemCreate,
-    ShoppingListItemRecipeRefCreate,
-    ShoppingListItemsCollectionOut,
-)
+from mealie.schema.household.group_shopping_list import ShoppingListAddRecipeParamsBulk
 from mealie.schema.household_planner.models import (
     BatchIn,
     GoalRevision,
@@ -23,18 +19,12 @@ from mealie.schema.household_planner.models import (
     PersonalOut,
     PersonalState,
     PlanIn,
+    PlanOut,
     ProfileIn,
     RecipeFactsIn,
     StateOut,
 )
-from mealie.schema.recipe.recipe_ingredient import IngredientUnit, SaveIngredientUnit, StandardizedUnitType
-from mealie.services.household_planner.calculations import (
-    NativeLine,
-    monthly_proposal,
-    plan_summary,
-    reserved,
-    week_shopping_items,
-)
+from mealie.services.household_planner.calculations import fresh_servings, monthly_proposal, plan_summary, reserved
 from mealie.services.household_planner.service import PlannerService
 from mealie.services.household_services.shopping_lists import ShoppingListService
 from mealie.services.recipe.ingredient_rules import ingredient_problems
@@ -66,6 +56,50 @@ class HouseholdPlannerController(BaseUserController):
         except RevisionConflict as exc:
             raise HTTPException(409, str(exc)) from exc
         return StateOut(revision=service.revision, state=service.state)
+
+    def _sync_shopping(self, plan: PlanOut | None, before: PlanOut | None) -> None:
+        """Bring the linked native list in line with the week's fresh cooking (adds/removes the difference).
+
+        Only the difference to what was transferred earlier is applied, so manual +/- on the list survive.
+        """
+        link = plan or before
+        if not link or not link.shopping_list_id:
+            return
+        list_id = link.shopping_list_id
+        added = before.shopping_servings if before and before.shopping_list_id == list_id else {}
+        target = fresh_servings(plan) if plan else {}
+        if not self.repos.group_shopping_lists.get_one(list_id):
+            if plan:  # list was deleted: drop the link silently
+                plan.shopping_list_id, plan.shopping_servings = None, {}
+            return
+        changes: list[tuple[UUID, float, float]] = []  # recipe, delta servings, recipe yield
+        for recipe_id in dict.fromkeys([*added, *target]):
+            delta = target.get(recipe_id, 0) - added.get(recipe_id, 0)
+            if abs(delta) < 1e-9:
+                continue
+            recipe = self.repos.recipes.get_one(UUID(recipe_id), key="id")
+            if not recipe:
+                continue
+            if not recipe.recipe_servings or recipe.recipe_servings <= 0:
+                raise HTTPException(422, f"{recipe.name}: Bitte im Rezept die Anzahl der Portionen eintragen.")
+            changes.append((recipe.id, delta, recipe.recipe_servings))
+        service = ShoppingListService(self.repos)
+        for recipe_uuid, delta, yield_ in changes:
+            if delta < 0:
+                # a dish dropped to zero removes its whole share, despite float rounding of earlier steps
+                gone = target.get(str(recipe_uuid), 0) <= 0
+                service.remove_recipe_ingredients_from_list(
+                    list_id, recipe_uuid, -delta / yield_ + (1e-6 if gone else 0)
+                )
+        additions = [
+            ShoppingListAddRecipeParamsBulk(recipe_id=r, recipe_increment_quantity=d / y)
+            for r, d, y in changes
+            if d > 0
+        ]
+        if additions:
+            service.add_recipe_ingredients_to_list(list_id, additions)
+        if plan:
+            plan.shopping_list_id, plan.shopping_servings = list_id, target
 
     def _check_plan(self, service: PlannerService, data: PlanIn) -> dict:
         try:
@@ -139,8 +173,11 @@ class HouseholdPlannerController(BaseUserController):
         s = self._service(revision)
         if str(data.id) not in s.state.plans:
             self._check_plan(s, data)
+        before = s.week_plan(data.start)
+        before = before.model_copy(deep=True) if before else None
         try:
             s.confirm(data, self._members(), self.group_id, self.user.id)
+            self._sync_shopping(s.week_plan(data.start), before)
             return self._write(s)
         except ValueError as exc:
             self.session.rollback()
@@ -153,8 +190,11 @@ class HouseholdPlannerController(BaseUserController):
         s = self._service(revision)
         if data.entries:
             self._check_plan(s, data)
+        before = s.week_plan(start)
+        before = before.model_copy(deep=True) if before else None
         try:
             s.save_week(data, self._members(), self.group_id, self.user.id)
+            self._sync_shopping(s.week_plan(start), before)
             return self._write(s)
         except ValueError as exc:
             self.session.rollback()
@@ -193,8 +233,10 @@ class HouseholdPlannerController(BaseUserController):
     @router.delete("/plans/{plan_id}", response_model=StateOut)
     def cancel(self, plan_id: UUID, revision: int = Query(ge=0)):
         s = self._service(revision)
+        before = s.state.plans.get(str(plan_id))
         try:
             s.cancel(plan_id)
+            self._sync_shopping(None, before)
             return self._write(s)
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from exc
@@ -228,82 +270,24 @@ class HouseholdPlannerController(BaseUserController):
         plan.checked_items = list(dict.fromkeys(data))
         return self._write(s)
 
-    def _gram_unit(self, service: ShoppingListService) -> IngredientUnit:
-        units = service.data_matcher.units_by_id.values()
-        gram = next(
-            (u for u in units if u.standard_unit == StandardizedUnitType.GRAM and u.standard_quantity == 1), None
-        )
-        if gram:
-            return gram
-        # Standardized so planner grams merge with existing g/kg items on the list.
-        return self.repos.ingredient_units.create(
-            SaveIngredientUnit(
-                name="Gramm",
-                abbreviation="g",
-                use_abbreviation=True,
-                standard_quantity=1,
-                standard_unit=StandardizedUnitType.GRAM,
-                group_id=self.group_id,
-            )
-        )
+    @router.post("/plans/{plan_id}/shopping-list/{list_id}", response_model=StateOut)
+    def add_to_shopping_list(self, plan_id: UUID, list_id: UUID, revision: int = Query(ge=0)):
+        """Link the week to a native list and add its fresh cooking as recipes (with portions).
 
-    @router.post("/plans/{plan_id}/shopping-list/{list_id}", response_model=ShoppingListItemsCollectionOut)
-    def add_to_shopping_list(self, plan_id: UUID, list_id: UUID):
-        """Add the week's fresh-cooking purchases to a native list. Not idempotent, like adding recipes natively."""
-        s = self._service()
+        Afterwards the list follows changes of the week automatically; calling again for the same list is a no-op.
+        """
+        s = self._service(revision)
         plan = s.state.plans.get(str(plan_id))
         if not plan:
             raise HTTPException(404, "Plan not found")
-        shopping_list = self.repos.group_shopping_lists.get_one(list_id)
-        if not shopping_list:
+        if not self.repos.group_shopping_lists.get_one(list_id):
             raise HTTPException(404, "Shopping list not found")
-        native: dict[str, list[NativeLine]] = {}
-        for recipe_id in {str(e.recipe_id) for e in plan.entries if not e.batch_id}:
-            recipe = self.repos.recipes.get_one(UUID(recipe_id), key="id")
-            if recipe:
-                yield_ = recipe.recipe_servings or 0
-                native[recipe_id] = [
-                    NativeLine(
-                        text=i.display or i.note or "",
-                        food=i.food.name if i.food else None,
-                        food_id=str(i.food.id) if i.food and getattr(i.food, "id", None) else None,
-                        unit_id=str(i.unit.id) if i.unit and getattr(i.unit, "id", None) else None,
-                        per_serving=(i.quantity or 0) / yield_ if yield_ > 0 else 0,
-                    )
-                    for i in recipe.recipe_ingredient
-                    if not i.referenced_recipe
-                ]
-        try:
-            items, extras = week_shopping_items(plan, s.state, native)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        service = ShoppingListService(self.repos)
-        gram = self._gram_unit(service) if items else None
-        create = [
-            ShoppingListItemCreate(
-                shopping_list_id=list_id,
-                note=item["name"],
-                quantity=item["grams"],
-                unit_id=gram.id if gram else None,
-                recipe_references=[
-                    ShoppingListItemRecipeRefCreate(recipe_id=UUID(r), recipe_quantity=0) for r in item["recipe_ids"]
-                ],
-            )
-            for item in items
-        ] + [
-            ShoppingListItemCreate(
-                shopping_list_id=list_id,
-                note=extra.get("note", ""),
-                quantity=extra.get("quantity", 0),
-                food_id=UUID(extra["food_id"]) if "food_id" in extra else None,
-                unit_id=UUID(extra["unit_id"]) if extra.get("unit_id") else None,
-                recipe_references=[ShoppingListItemRecipeRefCreate(recipe_id=UUID(extra["recipe_id"]))]
-                if "recipe_id" in extra
-                else [],
-            )
-            for extra in extras
-        ]
-        return service.bulk_create_items(create)
+        before = plan.model_copy(deep=True)
+        if plan.shopping_list_id != list_id:
+            before.shopping_servings = {}
+        plan.shopping_list_id = before.shopping_list_id = list_id
+        self._sync_shopping(plan, before)
+        return self._write(s)
 
     @router.post("/batches", response_model=StateOut)
     def add_batch(self, data: BatchIn, revision: int = Query(ge=0)):

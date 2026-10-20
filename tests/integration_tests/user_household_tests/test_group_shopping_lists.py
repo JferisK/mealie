@@ -1445,3 +1445,42 @@ def test_shopping_lists_add_recipe_scales_repeated_ingredient(
     items = [i for i in as_json["listItems"] if i["foodId"] == str(food.id)]
     assert [i["quantity"] for i in items] == [400]
     assert items[0]["recipeReferences"][0]["recipeQuantity"] == 200
+
+
+def test_shopping_lists_add_and_remove_single_portions(
+    api_client: TestClient, unique_user: TestUser, shopping_lists: list[ShoppingListOut]
+):
+    """+/- one portion (1/servings of a recipe) adds and removes exactly that share."""
+    food = unique_user.repos.ingredient_foods.create(
+        SaveIngredientFood(name=random_string(10), group_id=unique_user.group_id)
+    )
+    recipe = unique_user.repos.recipes.create(
+        Recipe(
+            user_id=unique_user.user_id,
+            group_id=unique_user.group_id,
+            name=random_string(10),
+            recipe_servings=4,
+            recipe_ingredient=[RecipeIngredient(quantity=600, food=food)],
+        )
+    )
+    sample_list = random.choice(shopping_lists)
+    add = utils.jsonify(
+        [ShoppingListAddRecipeParamsBulk(recipe_id=recipe.id, recipe_increment_quantity=0.25).model_dump()]
+    )
+
+    for _ in range(2):
+        response = api_client.post(
+            api_routes.households_shopping_lists_item_id_recipe(sample_list.id), json=add, headers=unique_user.token
+        )
+        utils.assert_deserialize(response, 200)
+    response = api_client.post(
+        api_routes.households_shopping_lists_item_id_recipe_recipe_id_delete(sample_list.id, recipe.id),
+        json={"recipeDecrementQuantity": 0.25},
+        headers=unique_user.token,
+    )
+    as_json = utils.assert_deserialize(response, 200)
+
+    items = [i for i in as_json["listItems"] if i["foodId"] == str(food.id)]
+    assert [i["quantity"] for i in items] == [150]
+    ref = next(r for r in as_json["recipeReferences"] if r["recipeId"] == str(recipe.id))
+    assert ref["recipeQuantity"] == 0.25

@@ -20,12 +20,15 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(preview["items"], [{"name": "Huhn", "state": "raw", "grams": 1000}])
 
     async def test_week_shopping_write_requires_confirmation(self):
-        with patch.object(server, "request", AsyncMock(return_value={})) as request:
+        with patch.object(server, "request", AsyncMock(return_value={"revision": 8})) as request:
             with self.assertRaisesRegex(ValueError, "confirmation"):
-                await server.add_week_to_shopping_list("week", "list")
+                await server.add_week_to_shopping_list("week", "list", 7)
             request.assert_not_awaited()
-            await server.add_week_to_shopping_list("week", "list", True)
-            request.assert_awaited_once_with("POST", "/api/households/planning/plans/week/shopping-list/list")
+            result = await server.add_week_to_shopping_list("week", "list", 7, True)
+            request.assert_awaited_once_with(
+                "POST", "/api/households/planning/plans/week/shopping-list/list?revision=7"
+            )
+            self.assertEqual(result, {"revision": 8, "linked_list": "list"})
 
     async def test_save_recipe_reuses_or_creates_foods_and_units(self):
         calls = []

@@ -151,6 +151,10 @@ export interface PlanOut {
   recipe_snapshots?: {
     [k: string]: RecipeFactsOut;
   };
+  shopping_list_id?: string | null;
+  shopping_servings?: {
+    [k: string]: number;
+  };
 }
 export interface PlannerState {
   facts?: {

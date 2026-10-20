@@ -85,6 +85,10 @@ class PlanOut(PlanIn):
     consumed: list[UUID] = Field(default_factory=list)
     checked_items: list[str] = Field(default_factory=list)
     recipe_snapshots: dict[str, RecipeFactsOut] = Field(default_factory=dict)
+    shopping_list_id: UUID | None = None
+    """Native shopping list that follows this week's fresh cooking."""
+    shopping_servings: dict[str, float] = Field(default_factory=dict)
+    """Servings per recipe already transferred to the linked list."""
 
 
 class BatchIn(Contract):

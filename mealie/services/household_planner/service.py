@@ -163,7 +163,9 @@ class PlannerService:
         existing = self.week_plan(plan.start)
         consumed: list[UUID] = []
         checked: list[str] = []
+        link: dict = {}
         if existing:
+            link = {"shopping_list_id": existing.shopping_list_id, "shopping_servings": existing.shopping_servings}
             plan = plan.model_copy(update={"id": existing.id})
             incoming = {e.id: e for e in plan.entries}
             for entry in existing.entries:
@@ -188,6 +190,7 @@ class PlannerService:
             consumed=consumed,
             checked_items=checked,
             recipe_snapshots=snapshots,
+            **link,
         )
 
     def _write_native(self, plan: PlanIn, group_id: UUID, actor: UUID) -> list[int]:

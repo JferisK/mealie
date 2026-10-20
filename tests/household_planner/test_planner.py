@@ -25,13 +25,7 @@ from mealie.schema.household_planner.models import (
     ProfileIn,
     RecipeFactsIn,
 )
-from mealie.services.household_planner.calculations import (
-    NativeLine,
-    monthly_proposal,
-    nutrition,
-    reserved,
-    week_shopping_items,
-)
+from mealie.services.household_planner.calculations import fresh_servings, monthly_proposal, nutrition, reserved
 from mealie.services.household_planner.service import PlannerService
 
 MONDAY = date(2026, 10, 12)
@@ -310,115 +304,19 @@ def test_ideas_merge_likes_and_toggle(service):
         IdeaIn(week_start=MONDAY + timedelta(days=1), recipe_id=recipe)
 
 
-def chicken_week(service, curry_servings=4, oven_servings=4):
-    """Curry (600 g Hähnchenbrust) and oven chicken (400 g Hähnchenbrust), both for 4 servings."""
-    user = uuid4()
-    recipes = {}
-    for name, grams, extra in [
-        ("Curry", 600, IngredientIn(name="Basmatireis", grams=240, state="raw")),
-        ("Ofen", 400, IngredientIn(name="Basmatireis", grams=100, state="cooked")),
-    ]:
-        f = RecipeFactsIn(
-            recipe_id=uuid4(),
-            servings=4,
-            ingredients=[IngredientIn(name="Hähnchenbrust", grams=grams, state="raw"), extra],
-        )
-        service.facts(f, name, name.lower(), None)
-        recipes[name] = f.recipe_id
-    entries = [
-        AllocationIn(user_id=user, recipe_id=recipes["Curry"], day=MONDAY, meal="lunch", servings=curry_servings),
-        AllocationIn(
-            user_id=user,
-            recipe_id=recipes["Ofen"],
-            day=MONDAY + timedelta(days=1),
-            meal="lunch",
-            servings=oven_servings,
-        ),
-    ]
-    return PlanIn(start=MONDAY, entries=entries), recipes
-
-
-def test_week_shopping_sums_same_ingredient_across_recipes(service):
-    plan, recipes = chicken_week(service)
-    items, extras = week_shopping_items(plan, service.state, {})
-    chicken = [i for i in items if i["name"] == "Hähnchenbrust"]
-    assert len(chicken) == 1
-    assert chicken[0]["grams"] == 1000
-    assert set(chicken[0]["recipe_ids"]) == {str(r) for r in recipes.values()}
-    assert extras == []
-
-
-def test_week_shopping_scales_by_planned_servings(service):
-    plan, _ = chicken_week(service, curry_servings=3, oven_servings=8)
-    items, _ = week_shopping_items(plan, service.state, {})
-    assert next(i for i in items if i["name"] == "Hähnchenbrust")["grams"] == 600 * 3 / 4 + 400 * 8 / 4
-
-
-def test_week_shopping_keeps_cooked_state_separate(service):
-    plan, _ = chicken_week(service)
-    items, _ = week_shopping_items(plan, service.state, {})
-    assert {i["name"]: i["grams"] for i in items if "Basmatireis" in i["name"]} == {
-        "Basmatireis": 240,
-        "Basmatireis (gekocht)": 100,
-    }
-
-
-def test_week_shopping_merges_raw_and_as_sold(service):
-    f1 = RecipeFactsIn(
-        recipe_id=uuid4(), servings=1, ingredients=[IngredientIn(name="Zwiebel", grams=100, state="raw")]
-    )
-    f2 = RecipeFactsIn(
-        recipe_id=uuid4(), servings=1, ingredients=[IngredientIn(name="zwiebel ", grams=150, state="as_sold")]
-    )
-    user = uuid4()
-    for f in (f1, f2):
-        service.facts(f, "x", "x", None)
-    plan = PlanIn(
-        start=MONDAY,
-        entries=[
-            AllocationIn(user_id=user, recipe_id=f.recipe_id, day=MONDAY, meal=meal, servings=1)
-            for f, meal in ((f1, "lunch"), (f2, "dinner"))
-        ],
-    )
-    items, _ = week_shopping_items(plan, service.state, {})
-    assert [(i["name"], i["grams"]) for i in items] == [("Zwiebel", 250)]
-
-
-def test_week_shopping_frozen_portions_need_no_purchase(service):
+def test_week_keeps_shopping_link_and_counts_fresh_servings(service):
     f, batch = prepared(service)
-    plan = PlanIn(
-        start=MONDAY,
-        entries=[
-            AllocationIn(
-                user_id=uuid4(), recipe_id=f.recipe_id, day=MONDAY, meal="lunch", servings=1, batch_id=batch.id
-            )
-        ],
-    )
-    native = {str(f.recipe_id): [NativeLine("200 g Rice"), NativeLine("Salz")]}
-    assert week_shopping_items(plan, service.state, native) == ([], [])
+    user = uuid4()
+    fresh = AllocationIn(user_id=user, recipe_id=f.recipe_id, day=MONDAY, meal="lunch", servings=3)
+    frozen = AllocationIn(user_id=user, recipe_id=f.recipe_id, day=MONDAY, meal="dinner", servings=1, batch_id=batch.id)
+    service.save_week(PlanIn(start=MONDAY, entries=[fresh, frozen]), {user}, uuid4(), user)
+    plan = service.week_plan(MONDAY)
+    assert fresh_servings(plan) == {str(f.recipe_id): 3}
+    list_id = uuid4()
+    plan.shopping_list_id, plan.shopping_servings = list_id, {str(f.recipe_id): 3}
 
+    service.save_week(PlanIn(start=MONDAY, entries=[fresh.model_copy(update={"servings": 5})]), {user}, uuid4(), user)
 
-def test_week_shopping_adds_uncovered_free_text_once(service):
-    plan, recipes = chicken_week(service)
-    native = {
-        str(recipes["Curry"]): [
-            NativeLine(t) for t in ["600 g Hähnchenbrust", "240 g Basmatireis", "2 EL Curry", "Salz"]
-        ],
-        str(recipes["Ofen"]): [NativeLine(t) for t in ["400 g Hähnchenbrust", "1 TL Paprikapulver", "Salz", " "]],
-    }
-    _, extras = week_shopping_items(plan, service.state, native)
-    assert extras == [{"note": "2 EL Curry"}, {"note": "Salz"}, {"note": "1 TL Paprikapulver"}]
-
-
-def test_week_shopping_scales_uncovered_structured_lines(service):
-    plan, recipes = chicken_week(service, curry_servings=6)
-    curry = str(recipes["Curry"])
-    native = {
-        # structured display uses the unit name, coverage must come from the food name
-        curry: [
-            NativeLine("600 Gramm Hähnchenbrust", food="Hähnchenbrust", food_id="f1", unit_id="g", per_serving=150),
-            NativeLine("2 Esslöffel Currypulver", food="Currypulver", food_id="f2", unit_id="el", per_serving=0.5),
-        ]
-    }
-    _, extras = week_shopping_items(plan, service.state, native)
-    assert extras == [{"food_id": "f2", "unit_id": "el", "quantity": 3.0, "recipe_id": curry}]
+    updated = service.week_plan(MONDAY)
+    assert (updated.shopping_list_id, updated.shopping_servings) == (list_id, {str(f.recipe_id): 3})
+    assert fresh_servings(updated) == {str(f.recipe_id): 5}

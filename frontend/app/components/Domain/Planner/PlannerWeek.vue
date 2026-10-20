@@ -1,11 +1,21 @@
 <template>
   <div class="pw">
-    <PlannerShoppingDialog v-if="plan" v-model="shoppingDialog" :plan-id="plan.id" @added="shoppingDone = true" />
+    <PlannerShoppingDialog v-if="plan && data" v-model="shoppingDialog" :plan-id="plan.id!" :revision="data.revision" @added="linked" />
 
     <div class="pw-toolbar">
       <PlannerWeekNav v-model="week" :disabled="busy" />
       <div class="pw-actions">
         <v-btn
+          v-if="plan?.shopping_list_id"
+          variant="tonal"
+          color="primary"
+          :prepend-icon="mdiCartOutline"
+          :to="`/shopping-lists/${plan.shopping_list_id}`"
+        >
+          {{ t('openShopping') }}
+        </v-btn>
+        <v-btn
+          v-else
           variant="tonal"
           color="primary"
           :prepend-icon="mdiCartOutline"
@@ -40,7 +50,7 @@
       @click:close="shoppingDone = false"
     >
       {{ t('shoppingAdded') }}
-      <NuxtLink to="/shopping-lists" class="pw-link">
+      <NuxtLink :to="plan?.shopping_list_id ? `/shopping-lists/${plan.shopping_list_id}` : '/shopping-lists'" class="pw-link">
         {{ t('toShopping') }}
       </NuxtLink>
     </v-alert>
@@ -255,7 +265,7 @@ import {
 } from "@mdi/js";
 import { addDays, format, parseISO, startOfWeek } from "date-fns";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
-import type { AllocationIn, RecipeFactsOut } from "~/lib/api/types/household-planner";
+import type { AllocationIn, RecipeFactsOut, StateOut } from "~/lib/api/types/household-planner";
 import { toPeople, type PlannerMember } from "~/lib/planner/people";
 import { usePlannerPageRefresh } from "~/composables/use-planner-page";
 import PlannerSheet from "~/components/Domain/Planner/PlannerSheet.vue";
@@ -489,6 +499,10 @@ watch(week, () => (shoppingDone.value = false));
 // ---- Shopping -----------------------------------------------------------
 const shoppingDialog = ref(false);
 const shoppingDone = ref(false);
+function linked(state: StateOut) {
+  data.value = state;
+  shoppingDone.value = true;
+}
 const freshDishes = computed(() => entries.value.filter(e => !e.batch_id));
 
 usePlannerPageRefresh(() => run(refresh), busy);

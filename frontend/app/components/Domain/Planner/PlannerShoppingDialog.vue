@@ -49,10 +49,11 @@
 import { useUserApi } from "~/composables/api";
 import { useHouseholdPlanner } from "~/composables/use-household-planner";
 import type { ShoppingListSummary } from "~/lib/api/types/household";
+import type { StateOut } from "~/lib/api/types/household-planner";
 
-// Sums the planner's gram amounts per ingredient server-side instead of copying unscaled recipe text.
-const props = defineProps<{ planId: string }>();
-const emit = defineEmits<{ added: [] }>();
+// Links the week to a native list: dishes appear with portions and the list follows later plan changes.
+const props = defineProps<{ planId: string; revision: number }>();
+const emit = defineEmits<{ added: [state: StateOut] }>();
 const dialog = defineModel<boolean>({ default: false });
 
 const i18n = useI18n();
@@ -84,9 +85,9 @@ watch(dialog, (open) => {
 });
 
 async function addTo(listId: string) {
-  await api.addToShoppingList(props.planId, listId);
+  const state = await api.addToShoppingList(props.planId, listId, props.revision);
   dialog.value = false;
-  emit("added");
+  emit("added", state);
 }
 
 function add(listId: string) {
