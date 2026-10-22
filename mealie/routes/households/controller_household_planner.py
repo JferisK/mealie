@@ -60,10 +60,10 @@ class HouseholdPlannerController(BaseUserController):
         )
         return recipe_ids - set(existing)
 
-    def _without_deleted(self, data: PlanIn) -> PlanIn:
-        """A page opened before a recipe was deleted may still send it; those entries are dropped."""
-        gone = self._deleted({e.recipe_id for e in data.entries})
-        return data.model_copy(update={"entries": [e for e in data.entries if e.recipe_id not in gone]})
+    def _reject_deleted(self, data: PlanIn) -> None:
+        """A page opened before a recipe was deleted may still send it (and the native mirror would fail)."""
+        if self._deleted({e.recipe_id for e in data.entries}):
+            raise HTTPException(422, "Ein Rezept in diesem Plan gibt es nicht mehr. Bitte die Seite neu laden.")
 
     def _members(self) -> set[UUID]:
         return {u.id for u in self.session.query(User).filter(User.household_id == self.household_id).all()}
@@ -206,13 +206,13 @@ class HouseholdPlannerController(BaseUserController):
 
     @router.post("/preview")
     def preview(self, data: PlanIn):
-        data = self._without_deleted(data)
+        self._reject_deleted(data)
         s = self._service()
         return {"revision": s.revision, "plan": data, "summary": self._check_plan(s, data)}
 
     @router.post("/confirm", response_model=StateOut)
     def confirm(self, data: PlanIn, revision: int = Query(ge=0)):
-        data = self._without_deleted(data)
+        self._reject_deleted(data)
         s = self._service(revision)
         if str(data.id) not in s.state.plans:
             self._check_plan(s, data)
@@ -230,7 +230,7 @@ class HouseholdPlannerController(BaseUserController):
     def save_week(self, start: date, data: PlanIn, revision: int = Query(ge=0)):
         if data.start != start:
             raise HTTPException(422, "Week start does not match the URL")
-        data = self._without_deleted(data)
+        self._reject_deleted(data)
         s = self._service(revision)
         if data.entries:
             self._check_plan(s, data)

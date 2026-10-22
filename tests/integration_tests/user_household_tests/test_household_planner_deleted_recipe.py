@@ -99,8 +99,8 @@ def test_week_with_only_deleted_recipes_is_removed(api_client: TestClient, uniqu
     assert response.status_code == 200, response.text
 
 
-def test_stale_page_can_still_save_the_week(api_client: TestClient, unique_user: TestUser):
-    """The week page still showed the deleted dish; removing another entry must work (was a 500 on PostgreSQL)."""
+def test_stale_page_gets_a_clear_error(api_client: TestClient, unique_user: TestUser):
+    """The week page still showed the deleted dish; saving was a 500 on PostgreSQL, now a hint to reload."""
     monday = next(WEEKS)
     food, unit = chicken(unique_user)
     curry = dish(api_client, unique_user, food, unit, 600)
@@ -111,7 +111,13 @@ def test_stale_page_can_still_save_the_week(api_client: TestClient, unique_user:
     delete_recipe(api_client, unique_user, curry)
     response = save(api_client, unique_user, monday, [*entries, entry(unique_user, chili, monday, "breakfast")])
 
+    assert response.status_code == 422, response.text
+    assert "neu laden" in response.json()["detail"]
+    # after reloading, the week only holds the chili and can be edited
+    plan = next(
+        p
+        for p in api_client.get(BASE, headers=unique_user.token).json()["state"]["plans"].values()
+        if p["start"] == str(monday)
+    )
+    response = save(api_client, unique_user, monday, [*plan["entries"], entry(unique_user, chili, monday, "breakfast")])
     assert response.status_code == 200, response.text
-    plan = next(p for p in response.json()["state"]["plans"].values() if p["start"] == str(monday))
-    assert {e["recipe_id"] for e in plan["entries"]} == {chili}
-    assert len(plan["entries"]) == 2
