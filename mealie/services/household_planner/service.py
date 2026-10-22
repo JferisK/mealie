@@ -35,6 +35,43 @@ class PlannerService:
         self.revision = self.repository.save(self.revision, self.state.model_dump(mode="json"))
         return self.revision
 
+    def recipe_ids(self) -> set[UUID]:
+        """Every recipe the planner refers to."""
+        s = self.state
+        return {
+            *(f.recipe_id for f in s.facts.values()),
+            *(b.recipe_id for b in s.batches.values()),
+            *(i.recipe_id for i in s.ideas.values()),
+            *(e.recipe_id for p in s.plans.values() for e in p.entries),
+            *(f.recipe_id for p in s.plans.values() for f in p.recipe_snapshots.values()),
+        }
+
+    def forget_recipes(self, gone: set[UUID]) -> None:
+        """A deleted recipe leaves the planner completely: facts, frozen portions, ideas and week entries.
+
+        Its native meal plan rows were already removed together with the recipe.
+        """
+        if not gone:
+            return
+        s = self.state
+        keys = {str(r) for r in gone}
+        batches = {k for k, b in s.batches.items() if b.recipe_id in gone}
+        for key in keys:
+            s.facts.pop(key, None)
+        for key in batches:
+            del s.batches[key]
+        s.movements = {k: m for k, m in s.movements.items() if str(m.batch_id) not in batches}
+        s.ideas = {k: i for k, i in s.ideas.items() if i.recipe_id not in gone}
+        for plan_key, plan in list(s.plans.items()):
+            plan.entries = [e for e in plan.entries if e.recipe_id not in gone and str(e.batch_id) not in batches]
+            remaining = {e.id for e in plan.entries}
+            plan.consumed = [c for c in plan.consumed if c in remaining]
+            plan.recipe_snapshots = {k: v for k, v in plan.recipe_snapshots.items() if k not in keys}
+            plan.shopping_servings = {k: v for k, v in plan.shopping_servings.items() if k not in keys}
+            if not plan.entries:
+                self._remove_native(plan)
+                del s.plans[plan_key]
+
     def facts(self, data: RecipeFactsIn, name: str, slug: str, image: str | None) -> None:
         per_serving, coverage = nutrition(data)
         self.state.facts[str(data.recipe_id)] = RecipeFactsOut(

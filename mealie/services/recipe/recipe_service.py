@@ -14,6 +14,8 @@ import sqlalchemy as sa
 from fastapi import UploadFile
 
 from mealie.core import exceptions
+from mealie.db.models.household.shopping_list import ShoppingListRecipeReference
+from mealie.db.models.recipe.recipe import RecipeModel
 from mealie.lang.providers import Translator
 from mealie.pkgs import cache
 from mealie.repos.all_repositories import get_repositories
@@ -36,6 +38,7 @@ from mealie.schema.recipe.request_helpers import RecipeDuplicate
 from mealie.schema.user.user import PrivateUser, UserRatingCreate
 from mealie.services._base_service import BaseService
 from mealie.services.household_services.household_service import HouseholdService
+from mealie.services.household_services.shopping_lists import ShoppingListService
 from mealie.services.parser_services._base import DataMatcher
 from mealie.services.recipe.ingredient_rules import require_structured_ingredients
 from mealie.services.recipe.recipe_data_service import RecipeDataService
@@ -690,6 +693,25 @@ class RecipeService(RecipeServiceBase):
         resp = self.delete_many([recipe.slug])
         return resp[0]
 
+    def _remove_from_shopping_lists(self, recipe_slugs: list[str]) -> None:
+        """Take the recipes' ingredients off every shopping list of the group before the recipes are deleted.
+
+        Deleting a recipe drops its list references, which would otherwise leave its quantities stranded.
+        """
+        group_repos = get_repositories(self.repos.session, group_id=self.repos.group_id, household_id=None)
+        refs = self.repos.session.execute(
+            sa.select(
+                ShoppingListRecipeReference.shopping_list_id,
+                RecipeModel.id,
+                ShoppingListRecipeReference.recipe_quantity,
+            )
+            .join(RecipeModel, RecipeModel.id == ShoppingListRecipeReference.recipe_id)
+            .where(RecipeModel.group_id == self.repos.group_id, RecipeModel.slug.in_(recipe_slugs))
+        ).all()
+        service = ShoppingListService(group_repos)
+        for list_id, recipe_id, quantity in refs:
+            service.remove_recipe_ingredients_from_list(list_id, recipe_id, quantity)
+
     def delete_many(self, recipe_slugs: list[str]) -> list[Recipe]:
         if not self.can_delete(recipe_slugs):
             if len(recipe_slugs) == 1:
@@ -698,6 +720,7 @@ class RecipeService(RecipeServiceBase):
                 msg = "You do not have permission to delete all of these recipes."
             raise exceptions.PermissionDenied(msg)
 
+        self._remove_from_shopping_lists(recipe_slugs)
         data = self.group_recipes.delete_many(recipe_slugs)
         for r in data:
             try:

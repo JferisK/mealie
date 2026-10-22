@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import select
 
 from mealie.core.config import get_app_settings
 from mealie.db.models.recipe.recipe import RecipeModel
@@ -42,12 +43,27 @@ class HouseholdPlannerController(BaseUserController):
 
     def _service(self, revision: int | None = None) -> PlannerService:
         service = PlannerService(self._repo())
+        # Deleted recipes vanish from every view; the cleaned state is stored with the next write.
+        service.forget_recipes(self._deleted(service.recipe_ids()))
         if revision is not None:
             try:
                 service.expect(revision)
             except RevisionConflict as exc:
                 raise HTTPException(409, str(exc)) from exc
         return service
+
+    def _deleted(self, recipe_ids: set[UUID]) -> set[UUID]:
+        if not recipe_ids:
+            return set()
+        existing = self.session.scalars(
+            select(RecipeModel.id).where(RecipeModel.group_id == self.group_id, RecipeModel.id.in_(recipe_ids))
+        )
+        return recipe_ids - set(existing)
+
+    def _without_deleted(self, data: PlanIn) -> PlanIn:
+        """A page opened before a recipe was deleted may still send it; those entries are dropped."""
+        gone = self._deleted({e.recipe_id for e in data.entries})
+        return data.model_copy(update={"entries": [e for e in data.entries if e.recipe_id not in gone]})
 
     def _members(self) -> set[UUID]:
         return {u.id for u in self.session.query(User).filter(User.household_id == self.household_id).all()}
@@ -190,11 +206,13 @@ class HouseholdPlannerController(BaseUserController):
 
     @router.post("/preview")
     def preview(self, data: PlanIn):
+        data = self._without_deleted(data)
         s = self._service()
         return {"revision": s.revision, "plan": data, "summary": self._check_plan(s, data)}
 
     @router.post("/confirm", response_model=StateOut)
     def confirm(self, data: PlanIn, revision: int = Query(ge=0)):
+        data = self._without_deleted(data)
         s = self._service(revision)
         if str(data.id) not in s.state.plans:
             self._check_plan(s, data)
@@ -212,6 +230,7 @@ class HouseholdPlannerController(BaseUserController):
     def save_week(self, start: date, data: PlanIn, revision: int = Query(ge=0)):
         if data.start != start:
             raise HTTPException(422, "Week start does not match the URL")
+        data = self._without_deleted(data)
         s = self._service(revision)
         if data.entries:
             self._check_plan(s, data)
