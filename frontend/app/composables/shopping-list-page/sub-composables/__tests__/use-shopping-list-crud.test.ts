@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { useShoppingListCrud } from "../use-shopping-list-crud";
+import { parseQuickAdd, useShoppingListCrud } from "../use-shopping-list-crud";
 import { useShoppingListState } from "../use-shopping-list-state";
 import { MOCK_ITEM, MOCK_LABEL, MOCK_LABEL2, MOCK_LABEL3, MOCK_SHOPPING_LIST } from "./mocks";
 
@@ -310,5 +310,20 @@ describe("use-shopping-list-crud", () => {
       expect(isOpen.value).toBe(true);
       expect(localLabels.value).toEqual(shoppingList.value?.labelSettings);
     });
+  });
+});
+
+describe("parseQuickAdd", () => {
+  const foods = [{ id: "f1", name: "Gurke", pluralName: "Gurken" }];
+
+  test("links a known food, also by its plural, and reads a leading amount", () => {
+    expect(parseQuickAdd("Gurke", foods)).toMatchObject({ quantity: 1, note: "", food: { id: "f1" } });
+    expect(parseQuickAdd(" 2 gurken ", foods)).toMatchObject({ quantity: 2, note: "", food: { id: "f1" } });
+    expect(parseQuickAdd("1,5 Gurke", foods).quantity).toBe(1.5);
+  });
+
+  test("anything else stays a plain note", () => {
+    expect(parseQuickAdd("Grillkohle", foods)).toEqual({ quantity: 1, food: undefined, note: "Grillkohle" });
+    expect(parseQuickAdd("7Up", foods)).toEqual({ quantity: 1, food: undefined, note: "7Up" });
   });
 });

@@ -248,7 +248,7 @@
       </div>
 
       <TransitionGroup name="scroll-x-transition">
-        <BaseExpansionPanels v-for="(value, key) in itemsByLabel" :key="key" :v-model="0" start-open>
+        <BaseExpansionPanels v-for="(value, key) in sections" :key="key" :v-model="0" start-open>
           <v-expansion-panel class="shopping-list-section">
             <!-- the label colour fills the header bar; an uncoloured (or unlabelled) header is muted instead -->
             <v-expansion-panel-title
@@ -293,10 +293,32 @@
                   />
                 </TransitionGroup>
               </VueDraggable>
+              <ShoppingListQuickAdd @add="quickAdd($event, key.toString())" />
             </v-expansion-panel-text>
           </v-expansion-panel>
         </BaseExpansionPanels>
       </TransitionGroup>
+      <!-- open a category that is not on the list yet (or "no category") to type entries into it -->
+      <v-menu v-if="otherSections.length" max-height="360">
+        <template #activator="{ props: menuProps }">
+          <v-btn
+            v-bind="menuProps"
+            :prepend-icon="$globals.icons.tags"
+            variant="tonal"
+            class="align-self-start mt-2"
+          >
+            {{ $t('shopping-list.other-category') }}
+          </v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item
+            v-for="name in otherSections"
+            :key="name"
+            :title="name"
+            @click="extraSections.push(name)"
+          />
+        </v-list>
+      </v-menu>
       <!-- Checked Items -->
       <v-expansion-panels flat rounded>
         <v-expansion-panel v-if="listItems.checked && listItems.checked.length > 0">
@@ -356,6 +378,7 @@ import MultiPurposeLabelSection from "~/components/Domain/ShoppingList/MultiPurp
 import ShoppingListAddItemForm from "~/components/Domain/ShoppingList/ShoppingListAddItemForm.vue";
 import ShoppingListItem from "~/components/Domain/ShoppingList/ShoppingListItem.vue";
 import ShoppingListItemEditor from "~/components/Domain/ShoppingList/ShoppingListItemEditor.vue";
+import ShoppingListQuickAdd from "~/components/Domain/ShoppingList/ShoppingListQuickAdd.vue";
 import { useShoppingListPage } from "~/composables/shopping-list-page/use-shopping-list-page";
 import { portionsFor } from "~/composables/shopping-list-page/sub-composables/use-shopping-list-recipes";
 import { useLabelStore, useUnitStore, useFoodStore } from "~/composables/store";
@@ -417,6 +440,7 @@ const {
   createEditorOpen,
   createListItemData,
   createListItem,
+  quickAddItem,
   itemsByLabel,
   getLabelColor,
   loadingCounter,
@@ -431,6 +455,25 @@ const {
   removeRecipeReferenceToList,
   addRecipeReferenceToList,
 } = shoppingListPage;
+
+// categories opened via "Weitere Kategorie" stay visible (empty) so entries can be typed into them
+const extraSections = ref<string[]>([]);
+const noLabelText = computed(() => i18n.t("shopping-list.no-label"));
+const sections = computed(() => {
+  const all = { ...itemsByLabel.value };
+  for (const name of extraSections.value) {
+    all[name] ??= [];
+  }
+  return all;
+});
+const otherSections = computed(() =>
+  [noLabelText.value, ...(allLabels.value || []).map(l => l.name)].filter(name => !(name in sections.value)),
+);
+
+function quickAdd(text: string, section: string) {
+  const label = section === noLabelText.value ? null : (allLabels.value || []).find(l => l.name === section) || null;
+  quickAddItem(text, label, allFoods.value || []);
+}
 
 function portionLabel(recipeId: string, servings?: number | null) {
   const ref = shoppingList.value?.recipeReferences?.find(r => r.recipeId === recipeId);

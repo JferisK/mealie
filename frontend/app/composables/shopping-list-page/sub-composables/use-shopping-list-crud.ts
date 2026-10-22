@@ -1,6 +1,21 @@
 import type { ShoppingListOut, ShoppingListItemOut, ShoppingListMultiPurposeLabelOut } from "~/lib/api/types/household";
+import type { MultiPurposeLabelOut } from "~/lib/api/types/labels";
+import type { IngredientFood } from "~/lib/api/types/recipe";
 import { useUserApi } from "~/composables/api";
 import { uuid4 } from "~/composables/use-utils";
+
+/**
+ * Reads a typed entry like "Gurke" or "2 Gurken": an optional leading amount, then the name.
+ * A name that matches a known food (or its plural) links that food, anything else stays a plain note.
+ */
+export function parseQuickAdd(text: string, foods: IngredientFood[]) {
+  const match = text.trim().match(/^(\d+(?:[.,]\d+)?)\s+(.+)$/);
+  const quantity = match ? Number(match[1]!.replace(",", ".")) : 1;
+  const name = (match ? match[2]! : text).trim();
+  const lower = name.toLocaleLowerCase();
+  const food = foods.find(f => f.name.toLocaleLowerCase() === lower || f.pluralName?.toLocaleLowerCase() === lower);
+  return { quantity, food, note: food ? "" : name };
+}
 
 /**
  * Composable for managing shopping list item CRUD operations
@@ -132,43 +147,63 @@ export function useShoppingListCrud(
     refresh();
   }
 
-  function createListItem() {
+  function addListItem(item: ShoppingListItemOut) {
     if (!shoppingList.value) {
-      return;
+      return false;
     }
 
-    if (!createListItemData.value.foodId && !createListItemData.value.note) {
+    if (!item.foodId && !item.note) {
       // don't create an empty item
-      return;
+      return false;
     }
 
     loadingCounter.value += 1;
 
     // ensure list id is set to the current list, which may not have loaded yet in the factory
-    createListItemData.value.shoppingListId = shoppingList.value.id;
+    item.shoppingListId = shoppingList.value.id;
 
     // ensure item is inserted into the end of the list, which may have been updated
-    createListItemData.value.position = shoppingList.value?.listItems?.length
+    item.position = shoppingList.value?.listItems?.length
       ? (shoppingList.value.listItems
           .map(({ position }) => position || 0)
           .reduce((a, b) => Math.max(a, b))) + 1
       : 0;
 
-    createListItemData.value.createdAt = new Date().toISOString();
-    createListItemData.value.updatedAt = createListItemData.value.createdAt;
+    item.createdAt = new Date().toISOString();
+    item.updatedAt = item.createdAt;
 
     updateListItemOrder();
 
-    shoppingListItemActions.createItem(createListItemData.value);
+    shoppingListItemActions.createItem(item);
     loadingCounter.value -= 1;
 
     if (shoppingList.value.listItems) {
       // add the item to the list immediately so the user sees the change
-      shoppingList.value.listItems.push(createListItemData.value);
+      shoppingList.value.listItems.push(item);
       updateListItemOrder();
+    }
+    return true;
+  }
+
+  function createListItem() {
+    if (!addListItem(createListItemData.value)) {
+      return;
     }
     createListItemData.value = listItemFactory();
     refresh();
+  }
+
+  /** Adds a typed entry (no recipe) straight into a category; `label` null means "no category". */
+  function quickAddItem(text: string, label: MultiPurposeLabelOut | null, foods: IngredientFood[]) {
+    if (!text.trim()) {
+      return;
+    }
+    const { quantity, food, note } = parseQuickAdd(text, foods);
+    const item = listItemFactory();
+    Object.assign(item, { quantity, note, food, foodId: food?.id, label, labelId: label?.id });
+    if (addListItem(item)) {
+      refresh();
+    }
   }
 
   function updateUncheckedListItems() {
@@ -242,6 +277,7 @@ export function useShoppingListCrud(
     deleteListItem,
     deleteListItems,
     createListItem,
+    quickAddItem,
     updateUncheckedListItems,
     updateLabelOrder,
     cancelLabelOrder,
