@@ -231,12 +231,13 @@ const topLinks = computed<SideBarLink[]>(() => [
     title: i18n.t("general.recipes"),
     restricted: false,
   },
-  {
-    icon: $globals.icons.search,
-    to: `/g/${groupSlug.value}/recipes/finder`,
-    title: i18n.t("recipe-finder.recipe-finder"),
-    restricted: false,
-  },
+  // Rezeptsuche ausgeblendet
+  // {
+  //   icon: $globals.icons.search,
+  //   to: `/g/${groupSlug.value}/recipes/finder`,
+  //   title: i18n.t("recipe-finder.recipe-finder"),
+  //   restricted: false,
+  // },
   {
     icon: mdiLightbulbOnOutline,
     title: i18n.t("household-planner.ideasTab"),
@@ -250,16 +251,29 @@ const topLinks = computed<SideBarLink[]>(() => [
     restricted: true,
   },
   {
-    icon: mdiPotSteam,
-    title: i18n.t("household-planner.cookTab"),
-    to: "/household/cooking",
+    icon: $globals.icons.formatListCheck,
+    title: i18n.t("shopping-list.shopping-lists"),
+    to: "/shopping-lists",
     restricted: true,
   },
   {
-    icon: mdiSnowflake,
-    title: i18n.t("household-planner.stockTab"),
-    to: "/household/freezer",
+    icon: mdiPotSteam,
+    title: i18n.t("household-planner.kitchenGroup"),
     restricted: true,
+    children: [
+      {
+        icon: mdiPotSteam,
+        title: i18n.t("household-planner.cookTab"),
+        to: "/household/cooking",
+        restricted: true,
+      },
+      {
+        icon: mdiSnowflake,
+        title: i18n.t("household-planner.stockTab"),
+        to: "/household/freezer",
+        restricted: true,
+      },
+    ],
   },
   {
     icon: mdiTarget,
@@ -267,18 +281,13 @@ const topLinks = computed<SideBarLink[]>(() => [
     to: "/household/goals",
     restricted: true,
   },
-  {
-    icon: $globals.icons.formatListCheck,
-    title: i18n.t("shopping-list.shopping-lists"),
-    to: "/shopping-lists",
-    restricted: true,
-  },
-  {
-    icon: $globals.icons.timelineText,
-    title: i18n.t("recipe.timeline"),
-    to: `/g/${groupSlug.value}/recipes/timeline`,
-    restricted: true,
-  },
+  // Zeitstrahl ausgeblendet
+  // {
+  //   icon: $globals.icons.timelineText,
+  //   title: i18n.t("recipe.timeline"),
+  //   to: `/g/${groupSlug.value}/recipes/timeline`,
+  //   restricted: true,
+  // },
   {
     icon: $globals.icons.book,
     to: `/g/${groupSlug.value}/cookbooks`,

@@ -1,6 +1,7 @@
 <template>
   <v-navigation-drawer v-model="modelValue" class="d-flex flex-column d-print-none position-fixed" touchless>
-    <AnnouncementDialog v-model="showAnnouncementsDialog" />
+    <!-- Ankündigungen ausgeblendet -->
+    <!-- <AnnouncementDialog v-model="showAnnouncementsDialog" /> -->
     <LanguageDialog v-model="state.languageDialog" />
     <!-- User Profile -->
     <template v-if="loggedIn && sessionUser">
@@ -118,6 +119,7 @@
     <!-- Bottom Navigation Links -->
     <template #append>
       <v-list v-model:selected="state.bottomSelected" nav density="comfortable">
+        <!-- Ankündigungen ausgeblendet
         <v-list-item
           v-if="loggedIn && announcementsEnabled"
           :title="$t('announcements.announcements')"
@@ -136,6 +138,7 @@
             </v-badge>
           </template>
         </v-list-item>
+        -->
         <v-menu location="end bottom" :offset="15">
           <template #activator="{ props: hoverProps }">
             <v-list-item v-bind="hoverProps" :prepend-icon="$globals.icons.cog" :title="$t('general.settings')" />
@@ -158,10 +161,10 @@
 <script setup lang="ts">
 import { useLoggedInState } from "~/composables/use-logged-in-state";
 import type { SidebarLinks } from "~/types/application-types";
-import AnnouncementDialog from "~/components/Domain/Announcement/AnnouncementDialog.vue";
+// import AnnouncementDialog from "~/components/Domain/Announcement/AnnouncementDialog.vue";
 import UserAvatar from "~/components/Domain/User/UserAvatar.vue";
 import { useToggleDarkMode } from "~/composables/use-utils";
-import { useAnnouncements } from "~/composables/use-announcements";
+// import { useAnnouncements } from "~/composables/use-announcements";
 
 const props = defineProps({
   user: {
@@ -192,8 +195,8 @@ const userProfileLink = computed(() => auth.user.value ? "/user/profile" : undef
 
 const toggleDark = useToggleDarkMode();
 
-const showAnnouncementsDialog = ref(false);
-const { announcementsEnabled, newAnnouncements } = useAnnouncements();
+// const showAnnouncementsDialog = ref(false);
+// const { announcementsEnabled, newAnnouncements } = useAnnouncements();
 
 const state = reactive({
   dropDowns: {} as Record<string, boolean>,

@@ -62,6 +62,21 @@
       <p>{{ t('needFacts') }}</p>
     </div>
 
+    <!-- Teleported: the .pw container (container-type) would otherwise become the containing block of fixed elements -->
+    <Teleport to="body">
+      <div
+        v-if="drag"
+        class="pw-ghost"
+        :style="{ left: `${drag.x}px`, top: `${drag.y}px` }"
+        aria-hidden="true"
+      >
+        {{ drag.name }}
+      </div>
+      <p v-if="drag" class="pw-dragtip" role="status">
+        {{ t('dragHint') }}
+      </p>
+    </Teleport>
+
     <section v-if="data && pendingIdeas.length" class="pw-ideas" :aria-label="t('pendingIdeas')">
       <h2 class="pw-ideas__title">
         <v-icon :icon="mdiLightbulbOnOutline" size="18" /> {{ t('pendingIdeas') }}
@@ -94,7 +109,7 @@
           <strong>{{ Number(day.slice(8)) }}.</strong>
           <span v-if="day === today" class="pw-day__today">{{ t('today') }}</span>
         </header>
-        <div v-for="meal in meals" :key="meal" class="pw-slot">
+        <div v-for="meal in meals" :key="meal" class="pw-slot" :class="{ 'is-drop': isDropTarget(day, meal) }" :data-day="day" :data-meal="meal">
           <span class="pw-slot__label">{{ t(meal) }}</span>
           <div class="pw-slot__dishes">
             <button
@@ -104,7 +119,9 @@
               class="pw-dish"
               :class="{ 'is-eaten': dish.eaten }"
               :aria-label="`${dish.name}, ${dish.people.map(p => p.name).join(', ')}`"
-              @click="openEditor(dish.recipeId)"
+              @pointerdown="onDishDown($event, dish, day, meal)"
+              @contextmenu.prevent
+              @click="onDishClick(dish.recipeId)"
             >
               <img v-if="dish.image" :src="recipeSmallImage(dish.recipeId, dish.image)" alt="" loading="lazy">
               <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" size="16" /></span>
@@ -370,6 +387,118 @@ const recipeFacts = (recipeId: string) => data.value?.state.facts?.[recipeId];
 const pendingIdeas = computed(() => Object.values(data.value?.state.ideas || {})
   .filter(i => i.week_start === week.value && !entries.value.some(e => e.recipe_id === i.recipe_id))
   .sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0) || a.created_at.localeCompare(b.created_at)));
+
+// ---- Long-press to move a dish to another day/meal -------------------------
+type DishRef = ReturnType<typeof dishesIn>[number];
+const HOLD_MS = 420;
+const MOVE_SLOP = 8;
+const drag = ref<{ recipeId: string; day: string; meal: Meal; name: string; x: number; y: number } | null>(null);
+const dropSlot = ref<{ day: string; meal: Meal } | null>(null);
+let holdTimer: ReturnType<typeof setTimeout> | undefined;
+let downAt = { x: 0, y: 0 };
+let suppressClick = false;
+let scrollFrame = 0;
+
+const isDropTarget = (day: string, meal: Meal) => !!drag.value && dropSlot.value?.day === day && dropSlot.value?.meal === meal
+  && !(drag.value.day === day && drag.value.meal === meal);
+
+function slotAt(x: number, y: number) {
+  const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-day][data-meal]");
+  return el ? { day: el.dataset.day!, meal: el.dataset.meal as Meal } : null;
+}
+
+function blockTouchScroll(e: TouchEvent) {
+  if (drag.value && e.cancelable) e.preventDefault();
+}
+
+function autoScroll() {
+  if (!drag.value) return;
+  const edge = 90;
+  if (drag.value.y < edge) window.scrollBy(0, -14);
+  else if (drag.value.y > window.innerHeight - edge) window.scrollBy(0, 14);
+  scrollFrame = requestAnimationFrame(autoScroll);
+}
+
+function onDishMove(e: PointerEvent) {
+  if (!drag.value) {
+    // Moved before the hold finished: the user is scrolling, not dragging.
+    if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > MOVE_SLOP) endDrag();
+    return;
+  }
+  drag.value = { ...drag.value, x: e.clientX, y: e.clientY };
+  dropSlot.value = slotAt(e.clientX, e.clientY) as { day: string; meal: Meal } | null;
+}
+
+function onDishUp(e: PointerEvent) {
+  if (drag.value) {
+    const target = slotAt(e.clientX, e.clientY);
+    if (target) moveDish(drag.value, target.day, target.meal as Meal);
+    suppressClick = true;
+    setTimeout(() => (suppressClick = false), 0);
+  }
+  endDrag();
+}
+
+function endDrag() {
+  clearTimeout(holdTimer);
+  cancelAnimationFrame(scrollFrame);
+  drag.value = null;
+  dropSlot.value = null;
+  window.removeEventListener("pointermove", onDishMove);
+  window.removeEventListener("pointerup", onDishUp);
+  window.removeEventListener("pointercancel", onDishCancel);
+  window.removeEventListener("touchmove", blockTouchScroll);
+}
+
+function onDishCancel() {
+  endDrag();
+}
+
+function onDishDown(e: PointerEvent, dish: DishRef, day: string, meal: Meal) {
+  if (dish.eaten || busy.value || (e.pointerType === "mouse" && e.button !== 0)) return;
+  downAt = { x: e.clientX, y: e.clientY };
+  window.addEventListener("pointermove", onDishMove);
+  window.addEventListener("pointerup", onDishUp);
+  window.addEventListener("pointercancel", onDishCancel);
+  window.addEventListener("touchmove", blockTouchScroll, { passive: false });
+  holdTimer = setTimeout(() => {
+    drag.value = { recipeId: dish.recipeId, day, meal, name: dish.name, x: downAt.x, y: downAt.y };
+    navigator.vibrate?.(15);
+    scrollFrame = requestAnimationFrame(autoScroll);
+  }, HOLD_MS);
+}
+
+function onDishClick(recipeId: string) {
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
+  openEditor(recipeId);
+}
+
+// Moves every person's portion of the dish; a person who already has another dish
+// in the target slot swaps places with it, so nothing is lost or double-booked.
+function moveDish(from: { recipeId: string; day: string; meal: Meal }, day: string, meal: Meal) {
+  if (from.day === day && from.meal === meal) return;
+  const moving = entries.value.filter(e => e.recipe_id === from.recipeId && e.day === from.day && e.meal === from.meal);
+  if (!moving.length) return;
+  const movingUsers = new Set(moving.map(e => e.user_id));
+  const displaced = entries.value.filter(e => e.day === day && e.meal === meal && e.recipe_id !== from.recipeId && movingUsers.has(e.user_id));
+  if (displaced.some(e => consumed.value.has(e.id!))) {
+    error.value = t("eatenLocked");
+    return;
+  }
+  const movedIds = new Set(moving.map(e => e.id));
+  const displacedIds = new Set(displaced.map(e => e.id));
+  const next = entries.value.map((e) => {
+    if (movedIds.has(e.id)) return { ...e, day, meal };
+    if (displacedIds.has(e.id)) return { ...e, day: from.day, meal: from.meal };
+    return e;
+  });
+  run(() => writeWeek(next));
+}
+
+onBeforeUnmount(() => endDrag());
 
 function dayTotal(day: string, userId: string) {
   let calories: number | null = 0;
@@ -655,6 +784,48 @@ onMounted(() => run(async () => {
   align-items: start;
   gap: 8px;
   padding: 6px 10px 6px 12px;
+}
+
+.pw-dish {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.pw-slot.is-drop {
+  background: var(--fork-tint);
+  outline: 2px dashed rgb(var(--v-theme-primary));
+  outline-offset: -2px;
+}
+
+.pw-ghost {
+  position: fixed;
+  z-index: 3000;
+  max-width: 220px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+  font-size: 0.86rem;
+  font-weight: 650;
+  pointer-events: none;
+  transform: translate(-50%, -140%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.pw-dragtip {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 2999;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--fork-hairline-strong);
+  font-size: 0.82rem;
+  text-align: center;
+  pointer-events: none;
 }
 
 .pw-slot + .pw-slot {
