@@ -141,7 +141,7 @@ task docker:prod        # Build and run production Docker compose
 
 5. **Composables for shared logic:** Prefer composables in `composables/` over inline code duplication
 
-6. **Translations:** Only modify `en-US` locale files when adding new translation strings - other locales are managed via Crowdin and **must never be modified** (PRs modifying non-English locales will be rejected)
+6. **Translations:** This fork's primary language is German. When adding new translation strings, always add them to both `de-DE` and `en-US` locale files. Never modify any other locale (managed via Crowdin)
 
 ### Cross-Cutting Concerns
 
@@ -198,7 +198,7 @@ task docker:prod        # Build and run production Docker compose
 - Are composables used for shared frontend logic instead of duplication?
 
 **Translations:**
-- Were only `en-US` locale files modified for new translation strings?
+- Were new translation strings added to both `de-DE` (primary language) and `en-US`?
 - Verify no other locale files (managed by Crowdin) were touched
 
 **Database Changes:**
@@ -218,7 +218,7 @@ task docker:prod        # Build and run production Docker compose
 - **Repository context:** Repos are group/household-scoped - passing wrong IDs causes 404s
 - **Session handling:** Don't create sessions manually, use dependency injection or `session_context()`
 - **Schema changes require codegen:** After changing Pydantic models, run `task dev:generate`
-- **Translation files:** Only modify `en-US` locale files - all other locales are managed by Crowdin
+- **Translation files:** Only modify `de-DE` (primary) and `en-US` locale files - all other locales are managed by Crowdin
 - **Dev containers:** This project uses VS Code dev containers - leverage the pre-configured environment
 - **Task commands:** Use `task` commands instead of direct tool invocation for consistency
 
@@ -236,3 +236,7 @@ task docker:prod        # Build and run production Docker compose
 - [Documentation](https://docs.mealie.io/)
 - [Contributors Guide](https://nightly.mealie.io/contributors/developers-guide/code-contributions/)
 - [Discord](https://discord.gg/QuStdQGSGK)
+
+## Deployment (this fork)
+
+Pushing to `mealie-next` triggers `.github/workflows/fork-image.yml`, which builds and publishes `ghcr.io/jferisk/mealie:next` for cookbook.jakob-kroemer.de. When a change should go live right away, fast-forward `mealie-next` to the finished work and push it.
