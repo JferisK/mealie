@@ -53,6 +53,16 @@
       @submit="saveLabelOrder"
       @close="cancelLabelOrder"
     >
+      <v-btn
+        variant="tonal"
+        color="primary"
+        block
+        class="mb-2"
+        :prepend-icon="$globals.icons.sortAlphabeticalAscending"
+        @click="sortLabelsBySupermarket"
+      >
+        {{ $t('shopping-list.sort-by-supermarket') }}
+      </v-btn>
       <v-card height="fit-content" max-height="70vh" style="overflow-y: auto;">
         <VueDraggable
           v-if="localLabels"
@@ -431,6 +441,7 @@ const {
   saveLabelOrder,
   cancelLabelOrder,
   updateLabelOrder,
+  sortLabelsBySupermarket,
   edit,
   threeDot,
   openCheckAll,

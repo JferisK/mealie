@@ -4,7 +4,8 @@
     permanent
     rounded="t-xl"
     location="bottom"
-    class="pa-4 pt-2 mb-0"
+    class="pa-4 pt-2 shopping-add-drawer"
+    :style="{ marginBottom: `${keyboardOffset}px` }"
     width="300"
     rail-width="85"
     :rail="rail"
@@ -110,6 +111,23 @@ async function expandAndFocus() {
   }, 200);
 }
 
+// On phones the on-screen keyboard overlays the layout viewport and would hide the
+// save button of this bottom drawer, so lift the drawer by the covered height.
+const keyboardOffset = ref(0);
+function updateKeyboardOffset() {
+  const viewport = window.visualViewport;
+  keyboardOffset.value = viewport ? Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop)) : 0;
+}
+onMounted(() => {
+  window.visualViewport?.addEventListener("resize", updateKeyboardOffset);
+  window.visualViewport?.addEventListener("scroll", updateKeyboardOffset);
+  updateKeyboardOffset();
+});
+onBeforeUnmount(() => {
+  window.visualViewport?.removeEventListener("resize", updateKeyboardOffset);
+  window.visualViewport?.removeEventListener("scroll", updateKeyboardOffset);
+});
+
 const target = ref();
 // Autocomplete menus are teleported outside the drawer, so selecting an item
 // would otherwise register as an outside click and collapse the form
@@ -132,3 +150,9 @@ watch(
   },
 );
 </script>
+
+<style scoped>
+.shopping-add-drawer {
+  transition: margin-bottom 0.15s ease-out;
+}
+</style>

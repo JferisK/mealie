@@ -62,6 +62,31 @@
       <p>{{ t('needFacts') }}</p>
     </div>
 
+    <section v-if="data && pendingIdeas.length" class="pw-ideas" :aria-label="t('pendingIdeas')">
+      <h2 class="pw-ideas__title">
+        <v-icon :icon="mdiLightbulbOnOutline" size="18" /> {{ t('pendingIdeas') }}
+      </h2>
+      <p class="pw-ideas__hint">
+        {{ t('pendingIdeasHint') }}
+      </p>
+      <div class="pw-ideas__list">
+        <button
+          v-for="idea in pendingIdeas"
+          :key="idea.id"
+          type="button"
+          class="pw-idea"
+          :disabled="!recipeFacts(idea.recipe_id)"
+          :title="recipeFacts(idea.recipe_id) ? '' : t('needFactsShort')"
+          @click="planIdea(idea.recipe_id)"
+        >
+          <img v-if="idea.image" :src="recipeSmallImage(idea.recipe_id, idea.image)" alt="" loading="lazy">
+          <span v-else class="pw-dish__ph" aria-hidden="true"><v-icon :icon="mdiPotSteamOutline" size="16" /></span>
+          <span class="pw-idea__name">{{ idea.name }}</span>
+          <span v-if="idea.likes?.length" class="pw-idea__likes"><v-icon :icon="mdiThumbUp" size="12" /> {{ idea.likes.length }}</span>
+        </button>
+      </div>
+    </section>
+
     <div v-if="data" class="pw-grid">
       <section v-for="day in days" :key="day" class="pw-day" :class="{ 'is-today': day === today }" :aria-label="longDay(day)">
         <header class="pw-day__head">
@@ -91,13 +116,14 @@
               </span>
             </button>
             <button
-              v-if="!dishesIn(day, meal).length"
               type="button"
               class="pw-empty"
+              :class="{ 'is-compact': dishesIn(day, meal).length }"
               :aria-label="`${t('planDish')}: ${longDay(day)}, ${t(meal)}`"
               @click="openPicker({ day, meal })"
             >
               <v-icon :icon="mdiPlus" size="18" />
+              <span v-if="dishesIn(day, meal).length" class="pw-empty__text">{{ t('addAnotherDish') }}</span>
             </button>
           </div>
         </div>
@@ -195,6 +221,12 @@
                   {{ m.name }}
                 </button>
               </div>
+              <small v-if="othersIn(day, meal).length" class="pw-others">
+                {{ t('alreadyPlanned') }}:
+                <span v-for="d in othersIn(day, meal)" :key="d.recipeId" class="pw-others__dish">
+                  {{ d.name }} <em>({{ d.people.map(p => p.name).join(', ') }})</em>
+                </span>
+              </small>
               <small v-for="note in replaceNotes(day, meal)" :key="note" class="pw-replace">{{ note }}</small>
             </div>
           </section>
@@ -257,11 +289,13 @@ import {
   mdiCartOutline,
   mdiCheck,
   mdiDeleteOutline,
+  mdiLightbulbOnOutline,
   mdiLockOutline,
   mdiMagnify,
   mdiPlus,
   mdiPotSteamOutline,
   mdiSnowflake,
+  mdiThumbUp,
 } from "@mdi/js";
 import { addDays, format, parseISO, startOfWeek } from "date-fns";
 import { useStaticRoutes } from "~/composables/api";
@@ -328,6 +362,15 @@ function dishesIn(day: string, meal: Meal) {
   return [...groups.values()];
 }
 
+// Dishes already in a slot besides the one currently being planned.
+const othersIn = (day: string, meal: Meal) => dishesIn(day, meal).filter(d => d.recipeId !== chosenId.value);
+
+const recipeFacts = (recipeId: string) => data.value?.state.facts?.[recipeId];
+// Ideas of this week that are not distributed over days yet: shown above the week so they are not lost.
+const pendingIdeas = computed(() => Object.values(data.value?.state.ideas || {})
+  .filter(i => i.week_start === week.value && !entries.value.some(e => e.recipe_id === i.recipe_id))
+  .sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0) || a.created_at.localeCompare(b.created_at)));
+
 function dayTotal(day: string, userId: string) {
   let calories: number | null = 0;
   let protein: number | null = 0;
@@ -391,13 +434,24 @@ function choose(recipeId: string) {
   chosenId.value = recipeId;
   const next = new Set(entries.value.filter(e => e.recipe_id === recipeId).map(e => slotKey(e.user_id, e.day, e.meal)));
   if (presetSlot.value) {
+    // Only people without a dish in this slot are preselected, so adding a second
+    // dish never silently replaces the first; occupied people can still be toggled.
+    const { day, meal } = presetSlot.value;
     for (const m of people.value) {
-      if (!blockedReason(m.id, presetSlot.value.day, presetSlot.value.meal)) next.add(slotKey(m.id, presetSlot.value.day, presetSlot.value.meal));
+      const occupied = entries.value.some(e => e.user_id === m.id && e.day === day && e.meal === meal && e.recipe_id !== recipeId);
+      if (!occupied && !blockedReason(m.id, day, meal)) next.add(slotKey(m.id, day, meal));
     }
   }
   selected.value = next;
   useFreezer.value = stockFor(recipeId) > 0;
   step.value = "when";
+}
+
+function planIdea(recipeId: string) {
+  presetSlot.value = null;
+  editing.value = false;
+  dialog.value = true;
+  choose(recipeId);
 }
 
 function openEditor(recipeId: string) {
@@ -708,6 +762,101 @@ onMounted(() => run(async () => {
 .pw-empty:hover {
   border-color: rgba(var(--v-theme-primary), 0.5);
   color: rgb(var(--v-theme-primary));
+}
+
+.pw-empty.is-compact {
+  grid-auto-flow: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 32px;
+  font-size: 0.76rem;
+}
+
+.pw-ideas {
+  margin-bottom: var(--fork-stack);
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.35);
+  border-radius: var(--fork-radius-card);
+  background: var(--fork-tint);
+}
+
+.pw-ideas__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pw-ideas__hint {
+  margin: 2px 0 8px;
+  font-size: 0.8rem;
+  color: var(--fork-ink-soft);
+}
+
+.pw-ideas__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pw-idea {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 4px 12px 4px 6px;
+  border: 1px solid var(--fork-hairline-strong);
+  border-radius: 999px;
+  background: rgb(var(--v-theme-surface));
+  color: inherit;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pw-idea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pw-idea img,
+.pw-idea .pw-dish__ph {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pw-idea__name {
+  overflow-wrap: anywhere;
+}
+
+.pw-idea__likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: rgb(var(--v-theme-primary));
+}
+
+.pw-others {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.76rem;
+  color: var(--fork-ink-soft);
+}
+
+.pw-others__dish {
+  display: inline-block;
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+.pw-others__dish em {
+  font-weight: 400;
 }
 
 .pw-day__totals {

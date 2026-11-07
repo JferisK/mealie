@@ -3,6 +3,7 @@ import type { MultiPurposeLabelOut } from "~/lib/api/types/labels";
 import type { IngredientFood } from "~/lib/api/types/recipe";
 import { useUserApi } from "~/composables/api";
 import { uuid4 } from "~/composables/use-utils";
+import { sortBySupermarket } from "~/lib/shopping/label-order";
 
 /**
  * Reads a typed entry like "Gurke" or "2 Gurken": an optional leading amount, then the name.
@@ -234,6 +235,13 @@ export function useShoppingListCrud(
     localLabels.value = labelSettings;
   }
 
+  function sortLabelsBySupermarket() {
+    if (!localLabels.value) {
+      return;
+    }
+    updateLabelOrder(sortBySupermarket(localLabels.value, setting => setting.label.name));
+  }
+
   function cancelLabelOrder() {
     loadingCounter.value -= 1;
     if (!shoppingList.value) {
@@ -269,6 +277,7 @@ export function useShoppingListCrud(
   return {
     createListItemData,
     localLabels,
+    sortLabelsBySupermarket,
     listItemFactory,
     checkAllItems,
     uncheckAllItems,

@@ -20,6 +20,7 @@ from mealie.schema.household.group_shopping_list import (
     ShoppingListOut,
     ShoppingListSave,
 )
+from mealie.schema.labels.multi_purpose_label import MultiPurposeLabelCreate
 from mealie.schema.recipe.recipe import Recipe
 from mealie.schema.recipe.recipe_ingredient import (
     IngredientFood,
@@ -27,6 +28,8 @@ from mealie.schema.recipe.recipe_ingredient import (
     RecipeIngredient,
 )
 from mealie.schema.response.pagination import OrderDirection, PaginationQuery
+from mealie.services.group_services.labels_service import MultiPurposeLabelService
+from mealie.services.household_services.label_order import FROZEN_LABEL_NAME, is_frozen_label, supermarket_sort_key
 from mealie.services.parser_services._base import DataMatcher
 from mealie.services.parser_services.parser_utils import UnitConverter, merge_quantity_and_unit
 
@@ -556,16 +559,26 @@ class ShoppingListService:
 
         return self.shopping_lists.get_one(shopping_list.id), items  # type: ignore
 
+    def _ensure_frozen_label(self) -> None:
+        """Frozen goods get their own category ("TK") instead of hiding under produce."""
+        existing = self.repos.group_multi_purpose_labels.page_all(PaginationQuery(page=1, per_page=-1))
+        if any(is_frozen_label(label.name) for label in existing.items):
+            return
+        MultiPurposeLabelService(self.repos).create_one(MultiPurposeLabelCreate(name=FROZEN_LABEL_NAME))
+
     def create_one_list(self, data: ShoppingListCreate, owner_id: UUID4):
+        self._ensure_frozen_label()
         create_data = data.cast(ShoppingListSave, group_id=self.repos.group_id, user_id=owner_id)
         new_list = self.shopping_lists.create(create_data)  # type: ignore
 
         labels = self.repos.group_multi_purpose_labels.page_all(
             PaginationQuery(page=1, per_page=-1, order_by="name", order_direction=OrderDirection.asc)
         )
+        # follow the supermarket walk (produce first), not the alphabet
+        ordered = sorted(labels.items, key=lambda label: supermarket_sort_key(label.name))
         label_settings = [
             ShoppingListMultiPurposeLabelCreate(shopping_list_id=new_list.id, label_id=label.id, position=i)
-            for i, label in enumerate(labels.items)
+            for i, label in enumerate(ordered)
         ]
 
         self.repos.shopping_list_multi_purpose_labels.create_many(label_settings)
