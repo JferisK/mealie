@@ -44,7 +44,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       VBtn: { rounded: "lg" },
       VChip: { rounded: "pill" },
       VAlert: { rounded: "lg" },
-      VDialog: { VCard: { rounded: "xl" } },
+      VDialog: { VCard: { rounded: "lg" } },
     };
     vuetifyOptions.theme = {
       defaultTheme: nuxtApp.$config.public.useDark ? "dark" : "light",

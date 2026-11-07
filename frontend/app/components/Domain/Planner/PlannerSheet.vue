@@ -12,7 +12,7 @@
     :fullscreen="fullscreen && xs"
     :class="['planner-sheet', { 'planner-sheet--bottom': !fullscreen && xs }]"
   >
-    <v-card class="planner-sheet__card" :rounded="xs ? 0 : 'xl'">
+    <v-card class="planner-sheet__card" :rounded="xs ? 0 : 'lg'">
       <header class="planner-sheet__header">
         <slot name="prepend" />
         <div class="planner-sheet__titles">
@@ -135,7 +135,7 @@ const { xs } = useDisplay();
   }
 
   .planner-sheet--bottom .planner-sheet__card {
-    border-radius: 24px 24px 0 0 !important;
+    border-radius: var(--fork-radius-card) var(--fork-radius-card) 0 0 !important;
     padding-bottom: var(--fork-safe-bottom);
   }
 }

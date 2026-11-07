@@ -2,7 +2,7 @@
   <div>
     <v-btn
       variant="outlined"
-      class="rounded-xl my-1 mx-1"
+      class="rounded-lg my-1 mx-1"
       :to="to"
     >
       <v-icon

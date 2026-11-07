@@ -2,8 +2,8 @@
 // Kept in one global stylesheet so upstream component files stay mostly untouched.
 // Colours: see plugins/theme.ts and mealie/core/settings/themes.py.
 
-$radius-card: 16px;
-$radius-control: 10px;
+$radius-card: 10px;
+$radius-control: 6px;
 
 :root {
   --fork-hairline: rgba(28, 38, 33, 0.09);
@@ -73,7 +73,7 @@ $radius-control: 10px;
   }
 
   .v-field {
-    border-radius: 999px;
+    border-radius: $radius-control;
     box-shadow: inset 0 0 0 1px var(--fork-hairline);
   }
 }

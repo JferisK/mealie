@@ -94,6 +94,7 @@
     </ol>
 
     <PlannerSheet v-model="dialog" fullscreen max-width="640" :title="t('proposeIdea')">
+      <!-- Kommentar ausgeblendet: Suche steht direkt oben
       <v-text-field
         v-model="note"
         :label="t('ideaNote')"
@@ -103,6 +104,7 @@
         class="mb-3"
         maxlength="500"
       />
+      -->
       <v-text-field
         v-model="search"
         :prepend-inner-icon="mdiMagnify"
@@ -203,7 +205,9 @@ const filteredRecipes = computed(() => {
 async function openPicker() {
   search.value = "";
   note.value = "";
-  dialog.value = true;
+  // Open after the tap has fully finished (iOS sends its trailing mouse events
+  // after the click), so the sheet is not dismissed by the very tap that opened it.
+  setTimeout(() => (dialog.value = true), 0);
   if (allRecipes.value.length) return;
   loadingRecipes.value = true;
   try {
@@ -230,6 +234,7 @@ onMounted(() => run(refresh));
 .pi {
   --pi-line: var(--fork-hairline);
   --pi-soft: var(--fork-ink-soft);
+  container: planner-ideas / inline-size;
   max-width: 860px;
 }
 
@@ -267,7 +272,7 @@ onMounted(() => run(refresh));
 .pi-card__media img {
   width: 112px;
   height: 112px;
-  border-radius: 12px;
+  border-radius: var(--fork-radius-control);
   object-fit: cover;
   background: rgba(var(--v-theme-primary), 0.08);
 }
@@ -326,7 +331,7 @@ onMounted(() => run(refresh));
   color: inherit;
   padding: 0 12px;
   border: 1px solid var(--pi-line);
-  border-radius: 999px;
+  border-radius: var(--fork-radius-control);
   background: transparent;
   font: inherit;
   font-weight: 650;
@@ -371,7 +376,7 @@ onMounted(() => run(refresh));
   align-items: center;
   padding: 8px;
   border: 1px solid var(--pi-line);
-  border-radius: 12px;
+  border-radius: var(--fork-radius-control);
   background: rgb(var(--v-theme-surface));
   text-align: left;
   font: inherit;
@@ -385,7 +390,7 @@ onMounted(() => run(refresh));
 .pi-pick img {
   width: 52px;
   height: 52px;
-  border-radius: 10px;
+  border-radius: var(--fork-radius-control);
   object-fit: cover;
   flex: none;
   background: rgba(var(--v-theme-primary), 0.08);
@@ -401,10 +406,20 @@ onMounted(() => run(refresh));
   color: var(--pi-soft);
 }
 
-@media (max-width: 600px) {
+/* Phone layout follows the component's own width (not the viewport), so the
+   toolbar cannot flip between full-width and compact while a sheet opens. */
+.pi-toolbar > .v-btn {
+  flex: 0 0 auto;
+}
+
+@container planner-ideas (max-width: 600px) {
   .pi-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .pi-toolbar > .v-btn {
+    width: 100%;
   }
 
   .pi-card {

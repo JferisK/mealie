@@ -2,7 +2,7 @@
   <v-navigation-drawer
     ref="target"
     permanent
-    rounded="t-xl"
+    rounded="t-lg"
     location="bottom"
     class="pa-4 pt-2 shopping-add-drawer"
     :style="{ marginBottom: `${keyboardOffset}px` }"

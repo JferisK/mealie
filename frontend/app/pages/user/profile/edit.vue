@@ -207,7 +207,7 @@
       <div class="d-flex flex-wrap justify-center mt-5">
         <v-btn
           variant="outlined"
-          class="rounded-xl my-1 mx-1"
+          class="rounded-lg my-1 mx-1"
           :to="`/user/profile`"
           nuxt
           exact

@@ -226,11 +226,12 @@
                   :key="m.id"
                   type="button"
                   class="pw-chip"
+                  :class="{ 'is-taken': takenBy(m.id, day, meal) }"
                   :style="{ '--c': m.color }"
                   :aria-pressed="isSelected(m.id, day, meal)"
                   :aria-label="`${m.name}, ${longDay(day)}, ${t(meal)}`"
                   :disabled="!!blockedReason(m.id, day, meal)"
-                  :title="blockedReason(m.id, day, meal) || m.name"
+                  :title="blockedReason(m.id, day, meal) || (takenBy(m.id, day, meal) ? `${m.name}: ${takenBy(m.id, day, meal)}` : m.name)"
                   @click="toggle(m.id, day, meal)"
                 >
                   <v-icon v-if="isSelected(m.id, day, meal)" :icon="mdiCheck" size="16" />
@@ -238,11 +239,8 @@
                   {{ m.name }}
                 </button>
               </div>
-              <small v-if="othersIn(day, meal).length" class="pw-others">
-                {{ t('alreadyPlanned') }}:
-                <span v-for="d in othersIn(day, meal)" :key="d.recipeId" class="pw-others__dish">
-                  {{ d.name }} <em>({{ d.people.map(p => p.name).join(', ') }})</em>
-                </span>
+              <small v-if="othersIn(day, meal).length" class="pw-others" :title="othersIn(day, meal).map(d => d.name).join(' · ')">
+                {{ t('alreadyPlanned') }}: {{ othersIn(day, meal).map(d => d.name).join(' · ') }}
               </small>
               <small v-for="note in replaceNotes(day, meal)" :key="note" class="pw-replace">{{ note }}</small>
             </div>
@@ -381,6 +379,11 @@ function dishesIn(day: string, meal: Meal) {
 
 // Dishes already in a slot besides the one currently being planned.
 const othersIn = (day: string, meal: Meal) => dishesIn(day, meal).filter(d => d.recipeId !== chosenId.value);
+// Name of another dish this person already has in the slot (chip is tinted, still selectable to replace it).
+function takenBy(userId: string, day: string, meal: Meal) {
+  const other = entries.value.find(e => e.user_id === userId && e.day === day && e.meal === meal && e.recipe_id !== chosenId.value);
+  return other ? factsFor(other)?.name || "?" : "";
+}
 
 const recipeFacts = (recipeId: string) => data.value?.state.facts?.[recipeId];
 // Ideas of this week that are not distributed over days yet: shown above the week so they are not lost.
@@ -801,29 +804,33 @@ onMounted(() => run(async () => {
 .pw-ghost {
   position: fixed;
   z-index: 3000;
-  max-width: 220px;
-  padding: 8px 14px;
-  border-radius: 999px;
+  max-width: 180px;
+  overflow: hidden;
+  padding: 4px 8px;
+  border-radius: var(--fork-radius-control);
   background: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-on-primary));
-  font-size: 0.86rem;
+  font-size: 0.75rem;
   font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   pointer-events: none;
-  transform: translate(-50%, -140%);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, -160%);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
 }
 
 .pw-dragtip {
   position: fixed;
   right: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--fork-safe-bottom));
   left: 12px;
   z-index: 2999;
-  padding: 8px 12px;
-  border-radius: 12px;
+  padding: 6px 10px;
+  border-radius: var(--fork-radius-control);
   background: rgb(var(--v-theme-surface));
   border: 1px solid var(--fork-hairline-strong);
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   text-align: center;
   pointer-events: none;
 }
@@ -979,7 +986,7 @@ onMounted(() => run(async () => {
   max-width: 100%;
   padding: 4px 12px 4px 6px;
   border: 1px solid var(--fork-hairline-strong);
-  border-radius: 999px;
+  border-radius: var(--fork-radius-control);
   background: rgb(var(--v-theme-surface));
   color: inherit;
   font: inherit;
@@ -997,7 +1004,7 @@ onMounted(() => run(async () => {
 .pw-idea .pw-dish__ph {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--fork-radius-control);
   object-fit: cover;
 }
 
@@ -1014,20 +1021,13 @@ onMounted(() => run(async () => {
 }
 
 .pw-others {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.76rem;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.3;
   color: var(--fork-ink-soft);
-}
-
-.pw-others__dish {
-  display: inline-block;
-  margin-right: 8px;
-  font-weight: 600;
-}
-
-.pw-others__dish em {
-  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pw-day__totals {
@@ -1144,7 +1144,7 @@ onMounted(() => run(async () => {
 .pw-pick .pw-dish__ph {
   width: 56px;
   height: 56px;
-  border-radius: 10px;
+  border-radius: var(--fork-radius-control);
   object-fit: cover;
   flex: none;
 }
@@ -1176,7 +1176,7 @@ onMounted(() => run(async () => {
   font-style: normal;
   font-size: 0.7rem;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--fork-radius-control);
   background: var(--fork-tint);
   color: rgb(var(--v-theme-primary));
 }
@@ -1242,7 +1242,7 @@ onMounted(() => run(async () => {
   max-width: 100%;
   padding: 0 12px;
   border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--fork-radius-control);
   background: transparent;
   color: var(--c);
   font: inherit;
@@ -1264,6 +1264,13 @@ onMounted(() => run(async () => {
   color: #fff;
 }
 
+/* Someone already eats another dish here: tinted, but still tappable to replace it. */
+.pw-chip.is-taken:not([aria-pressed="true"]) {
+  border-color: var(--fork-hairline-strong);
+  background: var(--fork-hairline-strong);
+  color: var(--fork-ink-soft);
+}
+
 .pw-chip:disabled {
   border-style: dashed;
   color: var(--fork-ink-soft);
@@ -1272,7 +1279,7 @@ onMounted(() => run(async () => {
 }
 
 .pw-replace {
-  grid-column: 2;
+  grid-column: 1 / -1;
   font-size: 0.75rem;
   line-height: 1.3;
   color: rgb(var(--v-theme-warning));
@@ -1318,8 +1325,5 @@ onMounted(() => run(async () => {
     align-content: start;
   }
 
-  .pw-replace {
-    grid-column: 1;
-  }
 }
 </style>

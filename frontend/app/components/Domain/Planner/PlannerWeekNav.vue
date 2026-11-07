@@ -83,7 +83,7 @@ function shift(days: number) {
 .planner-weeknav__now {
   margin-left: 6px;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--fork-radius-control);
   background: var(--fork-tint);
   color: rgb(var(--v-theme-primary));
   font-size: 0.7rem;
