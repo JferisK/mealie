@@ -31,6 +31,7 @@
           />
         </template>
       </RecipeCardLineItem>
+      <slot :name="'below-' + recipe.id" />
     </v-sheet>
   </v-list>
 </template>

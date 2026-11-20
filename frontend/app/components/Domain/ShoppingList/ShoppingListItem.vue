@@ -30,7 +30,7 @@
             />
             <div
               class="ml-2 text-truncate shopping-list-item__text"
-              :class="listItem.checked ? 'strike-through' : ''"
+              :class="{ 'strike-through': listItem.checked, 'text-disabled': nothingToBuy }"
               style="min-width: 0;"
             >
               <RecipeIngredientListItem :ingredient="listItem" />
@@ -51,30 +51,26 @@
               min-width="125px"
             >
               <template #activator="{ props: hoverProps }">
-                <v-tooltip
-                  v-if="recipeList && recipeList.length"
-                  open-delay="200"
-                  transition="slide-x-reverse-transition"
-                  density="compact"
-                  location="end"
-                  content-class="text-caption"
+                <v-btn
+                  v-if="shares.length"
+                  size="small"
+                  variant="text"
+                  class="ml-1 px-1"
+                  style="min-width: 0;"
+                  :title="$t('shopping-list.show-recipe-breakdown')"
+                  :aria-label="$t('shopping-list.show-recipe-breakdown')"
+                  :aria-expanded="displayRecipeRefs"
+                  @click="displayRecipeRefs = !displayRecipeRefs"
                 >
-                  <template #activator="{ props: tooltipProps }">
-                    <v-btn
-                      size="small"
-                      variant="text"
-                      class="ml-2"
-                      icon
-                      v-bind="tooltipProps"
-                      @click="displayRecipeRefs = !displayRecipeRefs"
-                    >
-                      <v-icon>
-                        {{ $globals.icons.silverwareForkKnife }}
-                      </v-icon>
-                    </v-btn>
-                  </template>
-                  <span>Toggle Recipes</span>
-                </v-tooltip>
+                  <span class="text-caption">{{ shares.length }}</span>
+                  <v-icon
+                    size="small"
+                    class="breakdown-chevron"
+                    :class="{ 'breakdown-chevron--open': displayRecipeRefs }"
+                  >
+                    {{ $globals.icons.chevronDown }}
+                  </v-icon>
+                </v-btn>
                 <v-btn
                   size="small"
                   variant="text"
@@ -114,17 +110,22 @@
           </div>
         </v-col>
       </v-row>
-      <v-container
-        v-if="!listItem.checked && recipeList && recipeList.length && displayRecipeRefs"
-        class="pa-0"
-      >
-        <RecipeList
-          :recipes="recipeList"
-          :list-item="listItem"
-          :disabled="isOffline"
-          :tile="true"
-        />
-      </v-container>
+      <v-expand-transition>
+        <div
+          v-if="!listItem.checked && shares.length && displayRecipeRefs"
+          class="shopping-list-item__breakdown"
+        >
+          <ShoppingListShareRow
+            v-for="share in shares"
+            :key="share.recipeId"
+            :title="share.title"
+            :quantity="share.quantity"
+            :unit="unit"
+            :disabled="isOffline"
+            @update="updateRecipeShare(share.recipeId, $event)"
+          />
+        </div>
+      </v-expand-transition>
       <v-row
         v-if="listItem.checked"
         no-gutters
@@ -161,7 +162,8 @@
 import { useOnline } from "@vueuse/core";
 import RecipeIngredientListItem from "../Recipe/RecipeIngredientListItem.vue";
 import ShoppingListItemEditor from "./ShoppingListItemEditor.vue";
-import RecipeList from "~/components/Domain/Recipe/RecipeList.vue";
+import ShoppingListShareRow from "./ShoppingListShareRow.vue";
+import { recipeShare, unitLabel, withRecipeShare } from "~/composables/shopping-list-page/use-recipe-share";
 import type { ShoppingListItemOut } from "~/lib/api/types/household";
 import type { MultiPurposeLabelOut } from "~/lib/api/types/labels";
 import type { IngredientUnit, IngredientFood, RecipeSummary } from "~/lib/api/types/recipe";
@@ -308,18 +310,49 @@ const swiping = computed(() => {
   return Math.max(0, Math.min(deltaX, 100));
 });
 
-const recipeList = computed<RecipeSummary[]>(() => {
-  const ret: RecipeSummary[] = [];
-  if (!listItem.value.recipeReferences) return ret;
-  listItem.value.recipeReferences.forEach((ref) => {
+// one line per recipe this item is needed for, with that recipe's share of the total
+const shares = computed(() => {
+  const refs = listItem.value.recipeReferences || [];
+  return refs.flatMap((ref) => {
     const recipe = props.recipes?.get(ref.recipeId);
-    if (recipe) ret.push(recipe);
+    if (!recipe) return [];
+    return [{
+      recipeId: ref.recipeId,
+      title: recipe.name || "",
+      quantity: recipeShare(listItem.value, ref.recipeId),
+    }];
   });
-  return ret;
 });
+
+const unit = computed(() => unitLabel(listItem.value));
+
+// every recipe's share was set to 0: still on the list, but nothing left to buy
+const nothingToBuy = computed(() => shares.value.length > 0 && !listItem.value.quantity);
+
+// only this list item changes; the recipe and its portions on the list stay as they are
+function updateRecipeShare(recipeId: string, amount: number) {
+  const updated = withRecipeShare(model.value, recipeId, amount);
+  model.value = updated;
+  localListItem.value = { ...updated };
+  emit("save", updated);
+}
 </script>
 
 <style lang="css">
+.breakdown-chevron {
+  transition: transform 0.2s ease;
+}
+
+.breakdown-chevron--open {
+  transform: rotate(180deg);
+}
+
+.shopping-list-item__breakdown {
+  padding-left: 36px;
+  padding-right: 4px;
+  margin-bottom: 4px;
+}
+
 .strike-through {
   text-decoration: line-through !important;
 }

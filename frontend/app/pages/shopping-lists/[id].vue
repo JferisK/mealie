@@ -181,6 +181,26 @@
           #[`actions-${recipe.id}`]
           :key="'item-actions-decrease' + recipe.id"
         >
+          <v-list-item-action v-if="recipeItems(recipe.id!).length">
+            <v-btn
+              icon
+              flat
+              size="small"
+              class="bg-transparent"
+              :title="$t('shopping-list.show-recipe-ingredients')"
+              :aria-label="$t('shopping-list.show-recipe-ingredients')"
+              :aria-expanded="expandedRecipes.has(recipe.id!)"
+              @click.prevent="toggleRecipe(recipe.id!)"
+            >
+              <v-icon
+                color="grey-lighten-1"
+                class="breakdown-chevron"
+                :class="{ 'breakdown-chevron--open': expandedRecipes.has(recipe.id!) }"
+              >
+                {{ $globals.icons.chevronDown }}
+              </v-icon>
+            </v-btn>
+          </v-list-item-action>
           <v-list-item-action>
             <v-btn
               v-if="recipe"
@@ -213,6 +233,29 @@
               </v-icon>
             </v-btn>
           </v-list-item-action>
+        </template>
+        <!-- this dish's items on the list with its share of each; editing changes the list only -->
+        <template
+          v-for="recipe in recipeList"
+          #[`below-${recipe.id}`]
+          :key="'item-breakdown-' + recipe.id"
+        >
+          <v-expand-transition>
+            <div
+              v-if="expandedRecipes.has(recipe.id!)"
+              class="px-4 pb-2"
+            >
+              <ShoppingListShareRow
+                v-for="item in recipeItems(recipe.id!)"
+                :key="item.id"
+                :title="itemTitle(item)"
+                :quantity="recipeShare(item, recipe.id!)"
+                :unit="unitLabel(item)"
+                :disabled="isOffline"
+                @update="saveListItem(withRecipeShare(item, recipe.id!, $event))"
+              />
+            </div>
+          </v-expand-transition>
         </template>
       </RecipeList>
     </section>
@@ -389,7 +432,9 @@ import ShoppingListAddItemForm from "~/components/Domain/ShoppingList/ShoppingLi
 import ShoppingListItem from "~/components/Domain/ShoppingList/ShoppingListItem.vue";
 import ShoppingListItemEditor from "~/components/Domain/ShoppingList/ShoppingListItemEditor.vue";
 import ShoppingListQuickAdd from "~/components/Domain/ShoppingList/ShoppingListQuickAdd.vue";
+import ShoppingListShareRow from "~/components/Domain/ShoppingList/ShoppingListShareRow.vue";
 import { useShoppingListPage } from "~/composables/shopping-list-page/use-shopping-list-page";
+import { recipeShare, unitLabel, withRecipeShare } from "~/composables/shopping-list-page/use-recipe-share";
 import { portionsFor } from "~/composables/shopping-list-page/sub-composables/use-shopping-list-recipes";
 import { useLabelStore, useUnitStore, useFoodStore } from "~/composables/store";
 import { alert } from "~/composables/use-toast";
@@ -484,6 +529,25 @@ const otherSections = computed(() =>
 function quickAdd(text: string, section: string) {
   const label = section === noLabelText.value ? null : (allLabels.value || []).find(l => l.name === section) || null;
   quickAddItem(text, label, allFoods.value || []);
+}
+
+// dishes opened at the top to show their items on the list
+const expandedRecipes = ref(new Set<string>());
+function toggleRecipe(recipeId: string) {
+  const next = new Set(expandedRecipes.value);
+  if (next.has(recipeId)) next.delete(recipeId);
+  else next.add(recipeId);
+  expandedRecipes.value = next;
+}
+
+function itemTitle(item: ShoppingListItemOut) {
+  return item.food?.name || item.note || item.display || "";
+}
+
+function recipeItems(recipeId: string) {
+  return (listItems.unchecked || [])
+    .filter(item => item.recipeReferences?.some(ref => ref.recipeId === recipeId))
+    .sort((a, b) => itemTitle(a).localeCompare(itemTitle(b)));
 }
 
 function portionLabel(recipeId: string, servings?: number | null) {
